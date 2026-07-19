@@ -60,6 +60,8 @@ button { touch-action: manipulation; }
 .app-title { text-align: center; font-size: 26px; color: var(--primary); }
 .profile-hint { text-align: center; color: #64748b; font-size: 14px; }
 .profile-list { display: flex; flex-direction: column; gap: 10px; }
+.profile-search-row { display: flex; gap: 8px; align-items: center; }
+.profile-search-row input { margin-bottom: 0; }
 .profile-card { display: flex; align-items: center; gap: 12px; background: var(--card); border: 2px solid #e2e8f0; border-radius: 14px; padding: 14px; cursor: pointer; min-height: 64px; position: relative; }
 .profile-card:active { border-color: var(--primary); background: var(--accent-soft); }
 .profile-card .p-icon { font-size: 32px; }
@@ -202,7 +204,8 @@ button.btn-main:active { background: var(--primary-hover); }
 /* ==================== 데스크톱(641px~): 탭바를 컨테이너 상단 배치로 전환 ==================== */
 @media (min-width: 641px) {
     #app-root { padding: 20px; }
-    .tab-menu { position: static; max-width: 600px; margin: 0 auto 16px; border: none; border-radius: 12px; padding: 6px; box-shadow: 0 2px 4px rgb(0 0 0 / 0.08); }
+    /* 컨테이너와 탭바가 붙어 보이지 않도록 위쪽 간격을 둔다 */
+    .tab-menu { position: static; max-width: 600px; margin: 16px auto; border: none; border-radius: 12px; padding: 6px; box-shadow: 0 2px 4px rgb(0 0 0 / 0.08); }
     .tab-btn { flex-direction: row; gap: 6px; min-height: 44px; font-size: 13px; }
     .container { padding: 25px; }
     .word-card:hover { border-color: var(--primary); background: var(--accent-soft); }
