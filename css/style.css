@@ -141,6 +141,7 @@ button.btn-main:active { background: var(--primary-hover); }
 .word-card:active { border-color: var(--primary); background: var(--accent-soft); }
 .word-folder-tag { display: block; font-size: 10px; font-weight: normal; color: #94a3b8; margin-top: 4px; }
 .delete-word-btn { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; line-height: 22px; border-radius: 50%; background: var(--danger); color: white; border: 2px solid white; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+.dict-word-btn { position: absolute; top: -8px; left: -8px; width: 26px; height: 26px; line-height: 20px; border-radius: 50%; background: #dcfce7; border: 2px solid white; font-size: 12px; cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); padding: 0; }
 
 .wrong-card { background: #fef2f2; border: 2px solid #fecaca; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 15px; border-radius: 10px; }
 .wrong-title { font-size: 18px; font-weight: bold; color: var(--danger); }
