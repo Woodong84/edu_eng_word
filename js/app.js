@@ -758,9 +758,10 @@ function validateAnswer() {
 // ---------------------------------------------------
 // [오답 노트 / 상태 목록 공용 카드]
 // ---------------------------------------------------
-function createWordDetailCard(item, badgeText) {
+// variant: 'wrong'(빨강, 기본) | 'correct'(초록: 정답만) | 'mixed'(주황: 정답+오답)
+function createWordDetailCard(item, badgeText, variant = 'wrong') {
     const card = document.createElement('div');
-    card.className = 'wrong-card';
+    card.className = 'wrong-card' + (variant !== 'wrong' ? ` ${variant}` : '');
 
     const title = document.createElement('div');
     title.className = 'wrong-title';
@@ -827,10 +828,14 @@ function renderStatus() {
     if (list.length === 0) return container.innerHTML = '<p style="text-align:center; grid-column:1/-1;">해당하는 단어가 없습니다.</p>';
 
     list.forEach(item => {
-        const badgeText = statusFilter === 'tested'
-            ? `정답 ${item.correctCount}회 · 오답 ${item.incorrectCount}회`
-            : `틀린 횟수: ${item.incorrectCount}회`;
-        container.appendChild(createWordDetailCard(item, badgeText));
+        if (statusFilter === 'tested') {
+            // 정답만=초록, 정답+오답=주황, 오답만=빨강으로 구분 표시
+            const variant = item.incorrectCount === 0 ? 'correct'
+                : (item.correctCount > 0 ? 'mixed' : 'wrong');
+            container.appendChild(createWordDetailCard(item, `정답 ${item.correctCount}회 · 오답 ${item.incorrectCount}회`, variant));
+        } else {
+            container.appendChild(createWordDetailCard(item, `틀린 횟수: ${item.incorrectCount}회`));
+        }
     });
 }
 
