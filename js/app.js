@@ -829,15 +829,33 @@ function bindStaticEvents() {
     $('btn-fetch-master').addEventListener('click', fetchMasterWords);
 }
 
-// 카카오톡/네이버/인스타그램 등 인앱 브라우저는 음성합성(TTS)을 지원하지 않거나
-// 무음 처리하는 경우가 많아, 감지되면 외부 브라우저로 열도록 안내한다.
+// 카카오톡/네이버/인스타그램 등 인앱 브라우저는 음성합성(TTS)을 무음 처리하는 경우가 많아,
+// 감지되면 외부 브라우저(크롬/사파리)로 자동 이동시킨다. 이동에 실패하면 안내 토스트로 대체.
+function escapeInAppBrowser() {
+    const ua = navigator.userAgent;
+    if (/KAKAOTALK/i.test(ua)) {
+        // 카카오톡 공식 스킴: 현재 페이지를 기기 기본 브라우저(안드로이드=크롬 등, 아이폰=사파리)로 열기
+        location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href);
+        return true;
+    }
+    if (/Android/i.test(ua) && /NAVER\(inapp|Instagram|FBAN|FBAV|Line\//i.test(ua)) {
+        // 안드로이드 일반 인앱 브라우저: 크롬 intent로 탈출
+        location.href = 'intent://' + location.host + location.pathname + '#Intent;scheme=https;package=com.android.chrome;end';
+        return true;
+    }
+    return false;
+}
+
 function warnIfTtsUnavailable() {
     const ua = navigator.userAgent;
     const isInAppBrowser = /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|Line\//i.test(ua);
     if (!('speechSynthesis' in window)) {
         showToast('📢 이 브라우저는 발음 소리를 지원하지 않아요.\n크롬 또는 사파리에서 열어주세요.', 5000);
-    } else if (isInAppBrowser) {
-        showToast('📢 카카오톡 등 앱 안에서 열면 발음 소리가 나지 않을 수 있어요.\n메뉴에서 [다른 브라우저로 열기]를 눌러주세요.', 5000);
+    }
+    if (isInAppBrowser) {
+        showToast('📢 발음 소리를 위해 크롬/사파리로 이동합니다.\n이동되지 않으면 메뉴에서 [다른 브라우저로 열기]를 눌러주세요.', 5000);
+        // 화면이 먼저 그려진 뒤 이동 시도 (이동이 차단돼도 앱은 그대로 사용 가능)
+        setTimeout(escapeInAppBrowser, 400);
     }
 }
 
