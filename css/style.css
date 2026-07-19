@@ -1,3 +1,8 @@
+/* ==========================================================================
+   초등 영단어 마스터 - 모바일 우선(mobile-first) 스타일
+   레벨 구간(tier)에 따라 body[data-tier] 값이 바뀌며 앱 색상/배경이 변한다.
+   ========================================================================== */
+
 :root {
     --primary: #4f46e5;
     --primary-hover: #4338ca;
@@ -8,54 +13,178 @@
     --bg: #f8fafc;
     --card: #ffffff;
     --text: #1e293b;
+    --accent-soft: #eef2ff;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; }
-body { background-color: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; }
-.container { max-width: 600px; width: 100%; background: var(--card); padding: 25px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-h1 { text-align: center; margin-bottom: 15px; color: #c2185b; font-size: 24px; }
 
-/* 칭찬 스티커 UI */
-.reward-zone { background: #fffbeb; border: 2px dashed var(--warning); border-radius: 12px; padding: 15px; margin-bottom: 20px; position: relative; }
-.sync-badge { position: absolute; top: -10px; right: -10px; background: var(--dark); color: white; font-size: 11px; padding: 4px 8px; border-radius: 10px; display: none; }
+/* 레벨 구간별 테마: 레벨이 오르면 앱 전체 색과 배경이 함께 변한다 */
+body[data-tier="1"] { --primary: #10b981; --primary-hover: #059669; --bg: #f0fdf4; --accent-soft: #d1fae5; }
+body[data-tier="2"] { --primary: #4f46e5; --primary-hover: #4338ca; --bg: #eef2ff; --accent-soft: #e0e7ff; }
+body[data-tier="3"] { --primary: #9333ea; --primary-hover: #7e22ce; --bg: #faf5ff; --accent-soft: #f3e8ff; }
+body[data-tier="4"] { --primary: #ea580c; --primary-hover: #c2410c; --bg: #fff7ed; --accent-soft: #ffedd5; }
+body[data-tier="5"] { --primary: #db2777; --primary-hover: #be185d; --bg: #fdf2f8; --accent-soft: #fce7f3; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+[hidden] { display: none !important; }
+
+body {
+    background-color: var(--bg);
+    color: var(--text);
+    transition: background-color 0.6s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button { touch-action: manipulation; }
+
+/* 모바일: 하단 탭바 높이만큼 본문 여백 확보 */
+#app-root { padding: 10px 10px calc(88px + env(safe-area-inset-bottom)); }
+
+.container { max-width: 600px; width: 100%; margin: 0 auto; background: var(--card); padding: 16px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+
+/* ==================== 상단 헤더 (프로필 표시) ==================== */
+.app-header { max-width: 600px; margin: 0 auto 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.profile-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--card); border: 2px solid var(--primary); border-radius: 20px; padding: 6px 14px; font-weight: bold; font-size: 15px; cursor: pointer; }
+#profile-chip-icon { font-size: 20px; }
+.btn-ghost { background: none; border: none; color: var(--primary); font-weight: bold; font-size: 13px; cursor: pointer; padding: 10px; min-height: 44px; }
+
+/* ==================== 프로필 선택 화면 ==================== */
+.profile-screen { max-width: 600px; margin: 0 auto; padding: 40px 20px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 16px; min-height: 100vh; }
+.app-title { text-align: center; font-size: 26px; color: var(--primary); }
+.profile-hint { text-align: center; color: #64748b; font-size: 14px; }
+.profile-list { display: flex; flex-direction: column; gap: 10px; }
+.profile-card { display: flex; align-items: center; gap: 12px; background: var(--card); border: 2px solid #e2e8f0; border-radius: 14px; padding: 14px; cursor: pointer; min-height: 64px; position: relative; }
+.profile-card:active { border-color: var(--primary); background: var(--accent-soft); }
+.profile-card .p-icon { font-size: 32px; }
+.profile-card .p-name { font-size: 17px; font-weight: bold; }
+.profile-card .p-meta { font-size: 12px; color: #64748b; }
+.profile-card.child { margin-left: 28px; border-style: dashed; }
+.child-badge { background: var(--accent-soft); color: var(--primary); font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold; }
+.profile-del-btn { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%; border: none; background: #fee2e2; color: #b91c1c; font-weight: bold; font-size: 14px; cursor: pointer; }
+
+.profile-form { background: var(--card); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+.form-label { font-size: 12px; font-weight: bold; color: #475569; }
+.icon-picker { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.icon-option { font-size: 26px; padding: 8px 0; text-align: center; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: var(--card); min-height: 48px; }
+.icon-option.selected { border-color: var(--primary); background: var(--accent-soft); }
+
+/* ==================== 칭찬 스티커 / 레벨 존 ==================== */
+.reward-zone { background: #fffbeb; border: 2px dashed var(--warning); border-radius: 12px; padding: 14px; margin-bottom: 16px; position: relative; }
+.sync-badge { position: absolute; top: -10px; right: -6px; background: var(--dark); color: white; font-size: 11px; padding: 4px 8px; border-radius: 10px; display: none; }
 .reward-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 8px; font-size: 14px; }
 .exp-bar-container { width: 100%; height: 12px; background: #fde68a; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
 .exp-fill { height: 100%; background: var(--warning); width: 0%; transition: width 0.5s ease-out; }
 .sticker-board { font-size: 24px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 30px; }
 
-/* 탭 메뉴 */
-.tab-menu { display: flex; gap: 8px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 5px; }
-.tab-btn { flex: 1; padding: 10px; border: none; background: #e2e8f0; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; white-space: nowrap; }
+/* ==================== 하단 탭 바 (모바일 기본) ==================== */
+.tab-menu {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+    display: flex; gap: 4px;
+    background: var(--card); border-top: 1px solid #e2e8f0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+}
+.tab-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    min-height: 52px; padding: 6px 2px;
+    border: none; border-radius: 12px; background: none;
+    font-size: 11px; font-weight: bold; color: #64748b; cursor: pointer; transition: 0.15s;
+}
+.tab-icon { font-size: 20px; }
 .tab-btn.active { background: var(--primary); color: white; }
 
 .section { display: none; }
 .section.active { display: block; }
 
-/* 공통 폼 스타일 */
-textarea, input[type="text"], input[type="password"] { width: 100%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
-textarea { height: 100px; resize: none; font-size: 16px; }
-button.btn-main { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
-button.btn-main:hover { background: var(--primary-hover); }
+/* ==================== 공통 폼 (16px 이상: iOS 자동확대 방지) ==================== */
+textarea, input[type="text"], input[type="password"], select {
+    width: 100%; padding: 12px; border: 2px solid #cbd5e1; border-radius: 10px;
+    margin-bottom: 10px; font-size: 16px; background: var(--card); color: var(--text);
+}
+textarea { height: 100px; resize: none; }
+select { margin-bottom: 0; }
+button.btn-main { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; min-height: 48px; }
+button.btn-main:active { background: var(--primary-hover); }
 
-/* 카드 및 기타 UI */
-.word-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px; }
-.word-card { position: relative; background: #f1f5f9; padding: 15px; border-radius: 8px; text-align: center; font-size: 18px; font-weight: bold; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
-.word-card:hover { border-color: var(--primary); background: #e2e8f0; }
-.delete-word-btn { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; line-height: 20px; border-radius: 50%; background: var(--danger); color: white; border: 2px solid white; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
-.wrong-card { background: #fef2f2; border: 2px solid #fecaca; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 15px; border-radius: 8px; }
+.btn-row { display: flex; gap: 8px; margin: 10px 0; }
+.btn-sync { flex: 1; padding: 12px 4px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; color: white; min-height: 44px; }
+.btn-ok { background: var(--success); }
+.btn-gray { background: #94a3b8; }
+.btn-dark { background: var(--dark); }
+.btn-icon { width: 44px; height: 44px; flex-shrink: 0; border: 2px solid #cbd5e1; background: var(--card); border-radius: 10px; font-size: 16px; cursor: pointer; }
+
+.count-line { margin-top: 16px; font-size: 14px; }
+.count-num { color: var(--primary); }
+.desc-text { font-size: 12px; color: #64748b; margin-bottom: 15px; }
+.desc-text.small { font-size: 11px; }
+
+/* ==================== 폴더 관리 ==================== */
+.folder-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.folder-row select { flex: 1; }
+.folder-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.folder-chip { padding: 8px 14px; border-radius: 16px; border: 2px solid #cbd5e1; background: var(--card); font-size: 13px; font-weight: bold; cursor: pointer; min-height: 40px; color: var(--text); }
+.folder-chip.active { border-color: var(--primary); background: var(--primary); color: white; }
+
+/* ==================== 프리셋 단어 선택 ==================== */
+.preset-zone { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+.preset-zone h4 { margin-bottom: 8px; }
+.preset-picker { max-height: 280px; overflow-y: auto; border: 2px solid #cbd5e1; border-radius: 10px; padding: 10px; }
+.preset-count-line { font-size: 12px; color: #64748b; margin: 8px 0; }
+.preset-cat { margin-bottom: 12px; }
+.preset-cat-header { font-weight: bold; font-size: 13px; color: #475569; margin-bottom: 4px; }
+.preset-word-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-chip { display: inline-flex; align-items: center; gap: 4px; padding: 8px 10px; border-radius: 8px; font-size: 14px; min-height: 40px; cursor: pointer; background: #f8fafc; border: 1px solid #cbd5e1; color: var(--text); }
+.preset-chip.selected { background: var(--accent-soft); border-color: var(--primary); }
+.preset-chip.registered { background: #f1f5f9; border-color: #e2e8f0; color: #94a3b8; cursor: default; }
+.preset-empty { text-align: center; color: #94a3b8; font-size: 13px; }
+
+/* ==================== 단어 카드 ==================== */
+.word-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+.word-card { position: relative; background: #f1f5f9; padding: 16px 12px; border-radius: 10px; text-align: center; font-size: 17px; font-weight: bold; cursor: pointer; border: 2px solid transparent; transition: 0.2s; min-height: 56px; }
+.word-card:active { border-color: var(--primary); background: var(--accent-soft); }
+.word-folder-tag { display: block; font-size: 10px; font-weight: normal; color: #94a3b8; margin-top: 4px; }
+.delete-word-btn { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; line-height: 22px; border-radius: 50%; background: var(--danger); color: white; border: 2px solid white; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / 0.3); }
+
+.wrong-card { background: #fef2f2; border: 2px solid #fecaca; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 15px; border-radius: 10px; }
 .wrong-title { font-size: 18px; font-weight: bold; color: var(--danger); }
 .wrong-badge { background: #fee2e2; color: #b91c1c; font-size: 12px; padding: 3px 8px; border-radius: 12px; font-weight: bold; }
 .wrong-actions { display: flex; gap: 5px; width: 100%; }
-.btn-action { flex: 1; padding: 6px; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+.btn-action { flex: 1; padding: 10px 6px; font-size: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; min-height: 40px; }
 .btn-audio { background: #e0e7ff; color: #3730a3; }
 .btn-dict { background: #dcfce7; color: #166534; }
 
-.quiz-box { text-align: center; padding: 20px 0; }
-.audio-btn { font-size: 40px; background: none; border: none; cursor: pointer; margin-bottom: 15px; }
-.quiz-input { width: 80%; padding: 12px; font-size: 20px; text-align: center; text-transform: lowercase; }
-.hint-text { color: #64748b; font-size: 16px; margin-bottom: 15px; letter-spacing: 2px; }
+/* ==================== 퀴즈 ==================== */
+.quiz-box { text-align: center; padding: 16px 0; }
+.audio-btn { font-size: 44px; background: none; border: none; cursor: pointer; margin-bottom: 15px; min-height: 60px; }
+.quiz-input { width: 100%; padding: 14px; font-size: 22px; text-align: center; text-transform: lowercase; }
+.hint-text { color: #64748b; font-size: 18px; margin-bottom: 15px; letter-spacing: 3px; }
+.quiz-progress { text-align: center; font-weight: bold; }
 
-/* 클라우드 설정 폼 */
-.cloud-form { background: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+/* ==================== 클라우드 설정 폼 ==================== */
+.cloud-form { background: #f1f5f9; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
 .cloud-form label { font-size: 12px; font-weight: bold; color: #475569; display: block; margin-bottom: 4px; }
-.cloud-actions { display: flex; gap: 10px; margin-top: 10px; }
-.btn-sync { flex: 1; padding: 10px; background: var(--dark); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+
+/* ==================== 토스트 알림 ==================== */
+.toast-zone { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; width: min(92vw, 420px); pointer-events: none; }
+.toast { background: rgba(30, 41, 59, 0.94); color: white; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: bold; text-align: center; white-space: pre-line; animation: toast-in 0.25s ease-out; box-shadow: 0 4px 12px rgb(0 0 0 / 0.25); }
+.toast.out { animation: toast-out 0.3s ease-in forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-12px); } }
+
+/* ==================== 레벨업 이펙트 ==================== */
+.levelup-overlay { position: fixed; inset: 0; z-index: 300; background: rgba(15, 23, 42, 0.55); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.levelup-card { background: var(--card); border-radius: 20px; padding: 34px 44px; text-align: center; animation: lv-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1); box-shadow: 0 10px 40px rgb(0 0 0 / 0.35); }
+.levelup-title { font-size: 26px; font-weight: bold; color: var(--primary); margin-bottom: 8px; }
+.levelup-level { font-size: 20px; font-weight: bold; margin-bottom: 10px; }
+.levelup-sticker { font-size: 44px; animation: lv-bounce 0.7s ease infinite alternate; }
+.lv-particle { position: absolute; top: -8vh; font-size: 26px; animation: lv-fall linear forwards; pointer-events: none; }
+@keyframes lv-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes lv-bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+@keyframes lv-fall { 0% { transform: translateY(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(120vh) rotate(540deg); opacity: 0.3; } }
+
+/* ==================== 데스크톱(641px~): 탭바를 컨테이너 상단 배치로 전환 ==================== */
+@media (min-width: 641px) {
+    #app-root { padding: 20px; }
+    .tab-menu { position: static; max-width: 600px; margin: 0 auto 16px; border: none; border-radius: 12px; padding: 6px; box-shadow: 0 2px 4px rgb(0 0 0 / 0.08); }
+    .tab-btn { flex-direction: row; gap: 6px; min-height: 44px; font-size: 13px; }
+    .container { padding: 25px; }
+    .word-card:hover { border-color: var(--primary); background: var(--accent-soft); }
+    .profile-card:hover { border-color: var(--primary); }
+}

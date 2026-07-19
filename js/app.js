@@ -1,201 +1,516 @@
-// 전역 상태 데이터
-let wordBank = JSON.parse(localStorage.getItem('wordBank')) || [];
-let userStats = JSON.parse(localStorage.getItem('userStats')) || { level: 1, exp: 0, stickers: [] };
-// 이제 GitHub는 "마스터 단어장 읽기 전용"으로만 사용 (개인 진도는 동기화하지 않음)
-let githubConfig = JSON.parse(localStorage.getItem('githubConfig')) || { rawUrl: '', token: '' };
+// app.js
+// 화면 로직 (프로필 선택 → 학습 앱)
+// - 저장은 AppStorage(storage.js), 계정은 Profiles(profiles.js)를 통해서만 접근한다.
+// - 클라우드 DB 도입 시 이 파일은 그대로 두고 storage.js의 어댑터만 교체하면 된다.
+
+const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------
+// [전역 상태] 현재 활성 프로필의 데이터만 메모리에 올린다
+// ---------------------------------------------------
+let wordBank = [];                                   // [{id, word, addedDate, correctCount, incorrectCount, folderId, source}]
+let userStats = { level: 1, exp: 0, stickers: [] };
+let folders = [];                                    // [{id, name}] 프로필별 단어 폴더
+let githubConfig = { rawUrl: '', token: '' };        // 마스터 단어장 설정 (프로필 공통)
 
 let currentQuizList = [];
 let currentQuizIndex = 0;
 let quizIncorrectCount = 0;
-let presetSelected = new Set(); // 초등 필수 단어 목록에서 사용자가 체크한 단어(임시 선택 상태, 저장되지 않음)
+let quizFolderId = 'all';       // 테스트 범위 폴더
+let studyFolderId = 'all';      // 학습 목록 필터 폴더
+let presetSelected = new Set(); // 프리셋에서 체크한 단어 (임시 상태)
+let selectedIcon = null;        // 프로필 생성 폼에서 고른 아이콘
+
 const stickerTypes = ['⭐', '🌟', '🏆', '👑', '🚀', '🔥', '🍎', '🦖', '🦄', '💎', '🏅', '🍕', '🎉', '🍀'];
-const VALID_WORD_PATTERN = /^[a-z]+(-[a-z]+)*$/; // 영어 알파벳 + 하이픈 복합어만 허용 (앱 입력/GitHub 파일/프리셋 모두 동일 검증)
+const VALID_WORD_PATTERN = /^[a-z]+(-[a-z]+)*$/; // 영어 알파벳 + 하이픈 복합어만 허용 (수동입력/GitHub/프리셋 동일 검증)
+const DEFAULT_FOLDER = { id: 'default', name: '기본 폴더' };
+const MASTER_FOLDER = { id: 'master', name: '☁️ 마스터' };
 
-// 초기화
-document.getElementById('gh-raw-url').value = githubConfig.rawUrl;
-document.getElementById('gh-token').value = githubConfig.token;
-updateWordCount();
-renderRewards();
-checkSyncStatus();
-renderPresetWordPicker();
+// 레벨 구간별 칭호/테마. body[data-tier]로 CSS 색상이 바뀐다 (css/style.css 참조)
+const LEVEL_TIERS = [
+    { min: 20, tier: 5, title: '단어 마스터' },
+    { min: 15, tier: 4, title: '단어 챔피언' },
+    { min: 10, tier: 3, title: '단어 마법사' },
+    { min: 5,  tier: 2, title: '단어 탐험가' },
+    { min: 1,  tier: 1, title: '단어 새싹' }
+];
 
-// ----------------------------------------------------
-// [GitHub 마스터 단어장 연동부 - 읽기 전용]
-// ----------------------------------------------------
+// ---------------------------------------------------
+// [프로필별 데이터 로드/저장]
+// ---------------------------------------------------
+function profileKey(suffix) { return `p:${Profiles.activeId()}:${suffix}`; }
+
+function loadProfileData() {
+    wordBank = AppStorage.get(profileKey('words'), []);
+    userStats = AppStorage.get(profileKey('stats'), { level: 1, exp: 0, stickers: [] });
+    folders = AppStorage.get(profileKey('folders'), [{ ...DEFAULT_FOLDER }]);
+    // 예전 데이터(폴더 개념 이전)에 folderId가 없으면 기본 폴더로 보정 후 즉시 저장
+    let needsBackfill = false;
+    wordBank.forEach(w => { if (!w.folderId) { w.folderId = DEFAULT_FOLDER.id; needsBackfill = true; } });
+    if (needsBackfill) saveProfileData();
+}
+
+function saveProfileData() {
+    AppStorage.set(profileKey('words'), wordBank);
+    AppStorage.set(profileKey('stats'), userStats);
+    AppStorage.set(profileKey('folders'), folders);
+}
+
+// ---------------------------------------------------
+// [토스트 알림] alert 대신 사용 (모바일에서 흐름이 끊기지 않도록)
+// ---------------------------------------------------
+function showToast(message, duration = 2200) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    $('toast-zone').appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add('out');
+        setTimeout(() => toast.remove(), 350);
+    }, duration);
+}
+
+// ---------------------------------------------------
+// [프로필 선택 화면 (로그인)]
+// ---------------------------------------------------
+function showProfileScreen() {
+    $('app-root').hidden = true;
+    $('profile-screen').hidden = false;
+    $('profile-form').hidden = true;
+    renderProfileList();
+}
+
+function renderProfileList() {
+    const container = $('profile-list');
+    container.innerHTML = '';
+    const profiles = Profiles.list();
+
+    if (profiles.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'profile-hint';
+        p.textContent = '아직 프로필이 없어요. 첫 프로필을 만들어 보세요!';
+        container.appendChild(p);
+        return;
+    }
+
+    const appendCard = (profile, isChild) => {
+        const card = document.createElement('div');
+        card.className = 'profile-card' + (isChild ? ' child' : '');
+
+        const icon = document.createElement('span');
+        icon.className = 'p-icon';
+        icon.textContent = profile.icon;
+
+        const info = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'p-name';
+        name.textContent = profile.name;
+        const meta = document.createElement('div');
+        meta.className = 'p-meta';
+        const stats = AppStorage.get(`p:${profile.id}:stats`, { level: 1 });
+        const words = AppStorage.get(`p:${profile.id}:words`, []);
+        meta.textContent = `Lv.${stats.level} · 단어 ${words.length}개`;
+        info.appendChild(name);
+        info.appendChild(meta);
+
+        card.appendChild(icon);
+        card.appendChild(info);
+
+        if (isChild) {
+            const badge = document.createElement('span');
+            badge.className = 'child-badge';
+            badge.textContent = '하위';
+            card.appendChild(badge);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'profile-del-btn';
+        delBtn.textContent = '✕';
+        delBtn.setAttribute('aria-label', `${profile.name} 프로필 삭제`);
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const childCount = Profiles.children(profile.id).length;
+            const warn = childCount > 0 ? `\n(하위 계정 ${childCount}개와 학습 데이터도 함께 삭제됩니다)` : '\n(학습 데이터도 함께 삭제됩니다)';
+            if (!confirm(`'${profile.name}' 프로필을 삭제할까요?${warn}`)) return;
+            Profiles.remove(profile.id);
+            renderProfileList();
+        });
+        card.appendChild(delBtn);
+
+        card.addEventListener('click', () => { Profiles.switchTo(profile.id); enterApp(); });
+        container.appendChild(card);
+    };
+
+    Profiles.topLevel().forEach(p => {
+        appendCard(p, false);
+        Profiles.children(p.id).forEach(c => appendCard(c, true));
+    });
+}
+
+function openProfileForm() {
+    $('profile-form').hidden = false;
+    $('new-profile-name').value = '';
+    selectedIcon = null;
+
+    // 아이콘 선택 그리드
+    const picker = $('icon-picker');
+    picker.innerHTML = '';
+    Profiles.PROFILE_ICONS.forEach(icon => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'icon-option';
+        btn.textContent = icon;
+        btn.addEventListener('click', () => {
+            selectedIcon = icon;
+            picker.querySelectorAll('.icon-option').forEach(el => el.classList.remove('selected'));
+            btn.classList.add('selected');
+        });
+        picker.appendChild(btn);
+    });
+
+    // 상위 계정 선택 (최상위 프로필만 상위가 될 수 있음 - 2단계까지만 허용)
+    const parentSel = $('parent-select');
+    parentSel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '없음 (독립 계정)';
+    parentSel.appendChild(noneOpt);
+    Profiles.topLevel().forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.icon} ${p.name}`;
+        parentSel.appendChild(opt);
+    });
+}
+
+function createProfileFromForm() {
+    const name = $('new-profile-name').value.trim();
+    if (!name) return showToast('이름을 입력해 주세요.');
+    if (!selectedIcon) return showToast('아이콘을 선택해 주세요.');
+    if (Profiles.list().some(p => p.name === name)) return showToast('같은 이름의 프로필이 이미 있어요.');
+
+    const parentId = $('parent-select').value || null;
+    const profile = Profiles.create({ name, icon: selectedIcon, parentId });
+    Profiles.switchTo(profile.id);
+    showToast(`${selectedIcon} ${name} 프로필이 만들어졌어요!`);
+    enterApp();
+}
+
+// ---------------------------------------------------
+// [앱 진입/초기화]
+// ---------------------------------------------------
+function enterApp() {
+    loadProfileData();
+    $('profile-screen').hidden = true;
+    $('app-root').hidden = false;
+
+    const profile = Profiles.active();
+    $('profile-chip-icon').textContent = profile.icon;
+    $('profile-chip-name').textContent = `${profile.name}의 영어 단어`;
+
+    studyFolderId = 'all';
+    quizFolderId = 'all';
+    presetSelected.clear();
+
+    applyLevelTheme();
+    renderRewards();
+    updateWordCount();
+    renderFolderSelect();
+    renderQuizFolderSelect();
+    renderPresetWordPicker();
+    checkSyncStatus();
+    $('gh-raw-url').value = githubConfig.rawUrl;
+    $('gh-token').value = githubConfig.token;
+    switchTab('manage');
+}
+
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId));
+    document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
+    $(`sec-${tabId}`).classList.add('active');
+
+    if (tabId === 'manage') { updateWordCount(); renderFolderSelect(); renderPresetWordPicker(); }
+    if (tabId === 'study') { renderStudyFolderChips(); renderStudyList(); }
+    if (tabId === 'test') { renderQuizFolderSelect(); startCumulativeTest(); }
+    if (tabId === 'wrong') renderWrongList();
+}
+
+// ---------------------------------------------------
+// [레벨/보상/테마]
+// ---------------------------------------------------
+function currentTier() { return LEVEL_TIERS.find(t => userStats.level >= t.min) || LEVEL_TIERS[LEVEL_TIERS.length - 1]; }
+
+function applyLevelTheme() { document.body.dataset.tier = currentTier().tier; }
+
+function renderRewards() {
+    $('level-text').innerText = `Lv.${userStats.level} ${currentTier().title}`;
+    $('exp-text').innerText = `${userStats.exp} / 100 EXP`;
+    $('exp-fill').style.width = `${userStats.exp}%`;
+    $('sticker-board').textContent = userStats.stickers.join(' ');
+}
+
+function gainExp(amount) {
+    userStats.exp += amount;
+    let leveledUp = false;
+    let lastSticker = null;
+    while (userStats.exp >= 100) {
+        userStats.exp -= 100;
+        userStats.level++;
+        leveledUp = true;
+        lastSticker = stickerTypes[Math.floor(Math.random() * stickerTypes.length)];
+        userStats.stickers.push(lastSticker);
+    }
+    saveProfileData();
+    renderRewards();
+    if (leveledUp) {
+        applyLevelTheme();
+        playLevelUpEffect(userStats.level, lastSticker);
+    }
+}
+
+// 레벨업 풀스크린 이펙트 (이모지 파티클 + 카드 팝업)
+function playLevelUpEffect(newLevel, sticker) {
+    const overlay = $('levelup-overlay');
+    $('levelup-level').textContent = `Lv.${newLevel} ${currentTier().title}`;
+    $('levelup-sticker').textContent = `새 스티커: ${sticker}`;
+
+    overlay.querySelectorAll('.lv-particle').forEach(el => el.remove());
+    const particleEmojis = ['🎉', '✨', '⭐', '🎊', '💫', sticker];
+    for (let i = 0; i < 24; i++) {
+        const span = document.createElement('span');
+        span.className = 'lv-particle';
+        span.textContent = particleEmojis[Math.floor(Math.random() * particleEmojis.length)];
+        span.style.left = `${Math.random() * 100}vw`;
+        span.style.animationDuration = `${1.4 + Math.random() * 1.4}s`;
+        span.style.animationDelay = `${Math.random() * 0.5}s`;
+        overlay.appendChild(span);
+    }
+
+    overlay.hidden = false;
+    setTimeout(() => { overlay.hidden = true; }, 2600);
+}
+
+// ---------------------------------------------------
+// [폴더 관리] 프로필마다 단어 폴더를 만들어 분류할 수 있다
+// ---------------------------------------------------
+function folderName(folderId) {
+    const f = folders.find(f => f.id === folderId);
+    return f ? f.name : DEFAULT_FOLDER.name;
+}
+
+function ensureFolder(folder) {
+    if (!folders.some(f => f.id === folder.id)) {
+        folders.push({ ...folder });
+        saveProfileData();
+    }
+}
+
+function renderFolderSelect() {
+    const sel = $('folder-select');
+    const prev = sel.value;
+    sel.innerHTML = '';
+    folders.forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = `${f.name} (${wordBank.filter(w => w.folderId === f.id).length})`;
+        sel.appendChild(opt);
+    });
+    if (folders.some(f => f.id === prev)) sel.value = prev;
+}
+
+function renderQuizFolderSelect() {
+    const sel = $('quiz-folder-select');
+    sel.innerHTML = '';
+    const allOpt = document.createElement('option');
+    allOpt.value = 'all';
+    allOpt.textContent = `전체 (${wordBank.length})`;
+    sel.appendChild(allOpt);
+    folders.forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = `${f.name} (${wordBank.filter(w => w.folderId === f.id).length})`;
+        sel.appendChild(opt);
+    });
+    sel.value = quizFolderId;
+    if (sel.value !== quizFolderId) { quizFolderId = 'all'; sel.value = 'all'; }
+}
+
+function addFolder() {
+    const name = prompt('새 폴더 이름을 입력하세요 (예: 3월 단어, 과학 단어)');
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed) return showToast('폴더 이름을 입력해 주세요.');
+    if (folders.some(f => f.name === trimmed)) return showToast('같은 이름의 폴더가 이미 있어요.');
+    const folder = { id: 'f' + Date.now().toString(36), name: trimmed };
+    folders.push(folder);
+    saveProfileData();
+    renderFolderSelect();
+    $('folder-select').value = folder.id;
+    showToast(`📁 '${trimmed}' 폴더가 만들어졌어요!`);
+}
+
+function deleteFolder() {
+    const folderId = $('folder-select').value;
+    if (folderId === DEFAULT_FOLDER.id) return showToast('기본 폴더는 삭제할 수 없어요.');
+    const target = folders.find(f => f.id === folderId);
+    if (!target) return;
+    const count = wordBank.filter(w => w.folderId === folderId).length;
+    if (!confirm(`'${target.name}' 폴더를 삭제할까요?\n(단어 ${count}개는 기본 폴더로 이동합니다)`)) return;
+
+    ensureFolder(DEFAULT_FOLDER);
+    wordBank.forEach(w => { if (w.folderId === folderId) w.folderId = DEFAULT_FOLDER.id; });
+    folders = folders.filter(f => f.id !== folderId);
+    if (studyFolderId === folderId) studyFolderId = 'all';
+    if (quizFolderId === folderId) quizFolderId = 'all';
+    saveProfileData();
+    renderFolderSelect();
+    showToast(`폴더가 삭제되고 단어는 기본 폴더로 이동했어요.`);
+}
+
+// ---------------------------------------------------
+// [단어 추가/중복 검증]
+// 데이터 정합성 규칙: 소문자 정규화 후 프로필 내 중복 금지.
+// 결과로 추가/중복제외/형식오류 건수를 리포트한다.
+// ---------------------------------------------------
+function addWordsToBank(words, { folderId = DEFAULT_FOLDER.id, source = 'manual' } = {}) {
+    let addedCount = 0, invalidCount = 0, duplicateCount = 0;
+    const incoming = new Set(); // 같은 입력 안에서의 중복도 제거
+
+    words.forEach(rawWord => {
+        const word = String(rawWord).trim().toLowerCase();
+        if (!VALID_WORD_PATTERN.test(word)) { invalidCount++; return; }
+        if (incoming.has(word) || wordBank.some(item => item.word === word)) { duplicateCount++; return; }
+        incoming.add(word);
+        wordBank.push({
+            id: Date.now() + Math.random(),
+            word,
+            addedDate: new Date().toISOString().split('T')[0],
+            correctCount: 0,
+            incorrectCount: 0,
+            folderId,
+            source // 'manual' | 'preset' | 'master' — 향후 클라우드 동기화 시 출처 구분용
+        });
+        addedCount++;
+    });
+
+    if (addedCount > 0) saveProfileData();
+    updateWordCount();
+    return { addedCount, invalidCount, duplicateCount };
+}
+
+function reportAddResult({ addedCount, invalidCount, duplicateCount }, prefix = '') {
+    let msg = `${prefix}단어 ${addedCount}개 추가 완료!`;
+    if (duplicateCount > 0) msg += `\n중복 제외 ${duplicateCount}개`;
+    if (invalidCount > 0) msg += `\n형식 오류 제외 ${invalidCount}개`;
+    showToast(msg);
+}
+
+function saveWords() {
+    const input = $('word-input').value;
+    if (!input.trim()) return showToast('단어를 입력해 주세요.');
+
+    const rawWords = input.split(/[\n,]+/).map(w => w.trim()).filter(w => w.length > 0);
+    const result = addWordsToBank(rawWords, { folderId: $('folder-select').value, source: 'manual' });
+    renderFolderSelect();
+    renderPresetWordPicker();
+    reportAddResult(result);
+    $('word-input').value = '';
+}
+
+function updateWordCount() { $('total-count').innerText = wordBank.length; }
+
+// ---------------------------------------------------
+// [GitHub 마스터 단어장 연동 - 읽기 전용]
+// 불러온 단어는 '☁️ 마스터' 폴더에 저장되며, 등록할 때마다 중복 검증을 거친다.
+// ---------------------------------------------------
 function saveCloudConfig() {
-    githubConfig.rawUrl = document.getElementById('gh-raw-url').value.trim();
-    githubConfig.token = document.getElementById('gh-token').value.trim();
-    localStorage.setItem('githubConfig', JSON.stringify(githubConfig));
-    alert('단어장 연동 설정이 로컬에 저장되었습니다.');
+    githubConfig.rawUrl = $('gh-raw-url').value.trim();
+    githubConfig.token = $('gh-token').value.trim();
+    AppStorage.set('cloudConfig', githubConfig);
+    showToast('단어장 연동 설정이 저장되었어요.');
     checkSyncStatus();
 }
 
 function checkSyncStatus() {
-    const badge = document.getElementById('sync-status');
-    badge.style.display = githubConfig.rawUrl ? 'block' : 'none';
+    $('sync-status').style.display = githubConfig.rawUrl ? 'block' : 'none';
 }
 
-// words.txt("apple, banana, school" 또는 줄바꿈 구분) 또는 words.json(["apple", ...] / [{"word":"apple"}, ...]) 둘 다 지원
+// words.txt("apple, banana" 또는 줄바꿈 구분) / words.json(["apple",...] 또는 [{"word":"apple"},...]) 모두 지원
 function parseMasterWordText(rawText) {
     try {
         const parsed = JSON.parse(rawText);
-        if(Array.isArray(parsed)) {
+        if (Array.isArray(parsed)) {
             return parsed
                 .map(item => (typeof item === 'string' ? item : item && item.word))
                 .filter(Boolean)
                 .map(w => String(w).trim().toLowerCase());
         }
     } catch (e) {
-        // JSON 파싱 실패 시 plain text로 간주하고 아래에서 처리
+        // JSON이 아니면 plain text로 간주
     }
     return rawText.split(/[\n,]+/).map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
 }
 
-// 단어 배열을 검증 후 중복 없이 wordBank에 추가하는 공통 함수.
-// saveWords(수동입력), fetchMasterWords(GitHub 불러오기), addSelectedPresetWords/addAllPresetWords(프리셋 선택)에서 공통으로 사용.
-function addWordsToBank(words) {
-    let addedCount = 0;
-    let invalidCount = 0;
-
-    words.forEach(rawWord => {
-        const word = String(rawWord).trim().toLowerCase();
-        if(!VALID_WORD_PATTERN.test(word)) { invalidCount++; return; }
-        if(!wordBank.some(item => item.word === word)) {
-            wordBank.push({
-                id: Date.now() + Math.random(),
-                word: word,
-                addedDate: new Date().toISOString().split('T')[0],
-                correctCount: 0,
-                incorrectCount: 0
-            });
-            addedCount++;
-        }
-    });
-
-    if(addedCount > 0) saveLocalCache();
-    updateWordCount();
-    return { addedCount, invalidCount };
-}
-
-// GitHub 파일 -> 로컬 단어장 병합 (GET, 읽기 전용)
-// 기존 단어의 correctCount/incorrectCount(개인 진도)는 건드리지 않고, 새 단어만 추가한다.
 async function fetchMasterWords() {
-    if(!githubConfig.rawUrl) return alert('GitHub 단어장 파일 주소를 먼저 입력해 주세요.');
+    if (!githubConfig.rawUrl) return showToast('GitHub 단어장 파일 주소를 먼저 입력해 주세요.');
 
     try {
         document.body.style.cursor = 'wait';
         const headers = {};
-        if(githubConfig.token) headers['Authorization'] = `Bearer ${githubConfig.token}`;
+        if (githubConfig.token) headers['Authorization'] = `Bearer ${githubConfig.token}`;
 
         const response = await fetch(githubConfig.rawUrl, { method: 'GET', headers });
-        if(!response.ok) throw new Error('파일을 불러오지 못했습니다 (주소와 저장소 공개 여부를 확인하세요)');
+        if (!response.ok) throw new Error('파일을 불러오지 못했습니다 (주소와 저장소 공개 여부를 확인하세요)');
 
         const rawText = await response.text();
-        const incomingWords = parseMasterWordText(rawText);
-        const { addedCount, invalidCount } = addWordsToBank(incomingWords);
-        renderPresetWordPicker(); // 프리셋 목록의 '등록됨' 표시 갱신
-
-        alert(`☁️ 단어장 새로고침 완료! 새로 추가된 단어 ${addedCount}개`
-            + (invalidCount > 0 ? `\n(형식이 맞지 않는 ${invalidCount}개 단어는 제외되었습니다)` : ''));
+        ensureFolder(MASTER_FOLDER);
+        const result = addWordsToBank(parseMasterWordText(rawText), { folderId: MASTER_FOLDER.id, source: 'master' });
+        renderFolderSelect();
+        renderPresetWordPicker();
+        reportAddResult(result, '☁️ ');
     } catch (error) {
-        alert(`오류: ${error.message}`);
+        showToast(`오류: ${error.message}`);
     } finally {
         document.body.style.cursor = 'default';
     }
 }
 
-// 로컬 데이터 저장 (더 이상 GitHub로 자동 push하지 않음 - 개인 진도는 이 기기에만 보관)
-function saveLocalCache() {
-    localStorage.setItem('wordBank', JSON.stringify(wordBank));
-    localStorage.setItem('userStats', JSON.stringify(userStats));
-}
-
-// ----------------------------------------------------
-// [기존 비즈니스 로직 연동부]
-// ----------------------------------------------------
-function switchTab(tabId) {
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.section').forEach(sec => sec.classList.remove('active'));
-    event.target.classList.add('active');
-    document.getElementById(`sec-${tabId}`).classList.add('active');
-
-    if(tabId === 'manage') { updateWordCount(); renderPresetWordPicker(); }
-    if(tabId === 'study') renderStudyList();
-    if(tabId === 'test') startCumulativeTest();
-    if(tabId === 'wrong') renderWrongList();
-}
-
-function renderRewards() {
-    document.getElementById('level-text').innerText = `Lv.${userStats.level} 영어 탐험가`;
-    document.getElementById('exp-text').innerText = `${userStats.exp} / 100 EXP`;
-    document.getElementById('exp-fill').style.width = `${userStats.exp}%`;
-    const board = document.getElementById('sticker-board');
-    board.innerHTML = userStats.stickers.length > 0 ? userStats.stickers.join(' ') : '';
-}
-
-function gainExp(amount) {
-    userStats.exp += amount;
-    if(userStats.exp >= 100) {
-        userStats.exp -= 100;
-        userStats.level++;
-        const newSticker = stickerTypes[Math.floor(Math.random() * stickerTypes.length)];
-        userStats.stickers.push(newSticker);
-        alert(`🎉 레벨업! [Lv.${userStats.level}]\n새로운 칭찬 스티커 '${newSticker}'를 획득했어요!`);
-    }
-    saveLocalCache(); // 개인 진도는 이 기기에만 저장 (GitHub로 전송하지 않음)
-    renderRewards();
-}
-
-function saveWords() {
-    const input = document.getElementById('word-input').value;
-    if(!input.trim()) return alert('단어를 입력해 주세요.');
-
-    const rawWords = input.split(/[\n,]+/).map(w => w.trim()).filter(w => w.length > 0);
-    const { addedCount, invalidCount } = addWordsToBank(rawWords);
-    renderPresetWordPicker(); // 프리셋 목록의 '등록됨' 표시 갱신
-
-    alert(`${addedCount}개의 단어 저장 완료!` + (invalidCount > 0 ? `\n(영문/하이픈 형식이 아닌 ${invalidCount}개 단어는 제외되었습니다)` : ''));
-    document.getElementById('word-input').value = '';
-}
-
-// ----------------------------------------------------
+// ---------------------------------------------------
 // [초등 필수 단어 300개 프리셋 선택 UI]
-// ----------------------------------------------------
+// ---------------------------------------------------
 function renderPresetWordPicker() {
-    const container = document.getElementById('preset-word-picker');
-    const searchTerm = document.getElementById('preset-search').value.trim().toLowerCase();
+    const container = $('preset-word-picker');
+    const searchTerm = $('preset-search').value.trim().toLowerCase();
     container.innerHTML = '';
 
     Object.entries(ELEMENTARY_WORD_CATEGORIES).forEach(([category, words]) => {
         const filtered = words.filter(w => w.includes(searchTerm));
-        if(filtered.length === 0) return;
+        if (filtered.length === 0) return;
 
         const catBlock = document.createElement('div');
-        catBlock.style.marginBottom = '12px';
+        catBlock.className = 'preset-cat';
 
         const catHeader = document.createElement('div');
-        catHeader.style.cssText = 'font-weight:bold; font-size:13px; color:#475569; margin-bottom:4px;';
+        catHeader.className = 'preset-cat-header';
         catHeader.textContent = `${category} (${filtered.length})`;
         catBlock.appendChild(catHeader);
 
         const wordWrap = document.createElement('div');
-        wordWrap.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px;';
+        wordWrap.className = 'preset-word-wrap';
 
         filtered.forEach(word => {
             const alreadyRegistered = wordBank.some(item => item.word === word);
             const chip = document.createElement('label');
-            chip.style.cssText = `display:inline-flex; align-items:center; gap:4px; padding:4px 8px;
-                border-radius:6px; font-size:13px; cursor:${alreadyRegistered ? 'default' : 'pointer'};
-                background:${alreadyRegistered ? '#f1f5f9' : (presetSelected.has(word) ? '#ede9fe' : '#f8fafc')};
-                border:1px solid ${alreadyRegistered ? '#e2e8f0' : (presetSelected.has(word) ? 'var(--primary)' : '#cbd5e1')};
-                color:${alreadyRegistered ? '#94a3b8' : '#1e293b'};`;
+            chip.className = 'preset-chip'
+                + (alreadyRegistered ? ' registered' : '')
+                + (presetSelected.has(word) ? ' selected' : '');
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.checked = presetSelected.has(word);
             checkbox.disabled = alreadyRegistered;
             checkbox.addEventListener('change', () => {
-                if(checkbox.checked) presetSelected.add(word); else presetSelected.delete(word);
+                if (checkbox.checked) presetSelected.add(word); else presetSelected.delete(word);
                 renderPresetWordPicker();
             });
 
@@ -208,53 +523,84 @@ function renderPresetWordPicker() {
         container.appendChild(catBlock);
     });
 
-    if(container.innerHTML === '') {
-        container.innerHTML = '<p style="text-align:center; color:#94a3b8; font-size:13px;">검색 결과가 없습니다.</p>';
+    if (container.innerHTML === '') {
+        container.innerHTML = '<p class="preset-empty">검색 결과가 없습니다.</p>';
     }
-    document.getElementById('preset-selected-count').textContent = presetSelected.size;
+    $('preset-selected-count').textContent = presetSelected.size;
 }
 
 function selectAllPresetWords(checked) {
-    const searchTerm = document.getElementById('preset-search').value.trim().toLowerCase();
+    const searchTerm = $('preset-search').value.trim().toLowerCase();
     Object.values(ELEMENTARY_WORD_CATEGORIES).flat().forEach(word => {
-        if(!word.includes(searchTerm)) return;
-        if(wordBank.some(item => item.word === word)) return; // 이미 등록된 단어는 건드리지 않음
-        if(checked) presetSelected.add(word); else presetSelected.delete(word);
+        if (!word.includes(searchTerm)) return;
+        if (wordBank.some(item => item.word === word)) return;
+        if (checked) presetSelected.add(word); else presetSelected.delete(word);
     });
     renderPresetWordPicker();
 }
 
 function addSelectedPresetWords() {
-    if(presetSelected.size === 0) return alert('추가할 단어를 먼저 선택해 주세요.');
-    const { addedCount } = addWordsToBank([...presetSelected]);
+    if (presetSelected.size === 0) return showToast('추가할 단어를 먼저 선택해 주세요.');
+    const result = addWordsToBank([...presetSelected], { folderId: $('folder-select').value, source: 'preset' });
     presetSelected.clear();
+    renderFolderSelect();
     renderPresetWordPicker();
-    alert(`${addedCount}개의 단어가 추가되었습니다!`);
+    reportAddResult(result);
 }
 
 function addAllPresetWords() {
-    if(!confirm('초등 필수 단어 300개를 모두 추가할까요? (이미 등록된 단어는 건너뜁니다)')) return;
+    if (!confirm('초등 필수 단어 300개를 모두 추가할까요? (이미 등록된 단어는 건너뜁니다)')) return;
     const all = Object.values(ELEMENTARY_WORD_CATEGORIES).flat();
-    const { addedCount } = addWordsToBank(all);
+    const result = addWordsToBank(all, { folderId: $('folder-select').value, source: 'preset' });
     presetSelected.clear();
+    renderFolderSelect();
     renderPresetWordPicker();
-    alert(`${addedCount}개의 단어가 새로 추가되었습니다!`);
+    reportAddResult(result);
 }
 
-function updateWordCount() { document.getElementById('total-count').innerText = wordBank.length; }
+// ---------------------------------------------------
+// [사전 학습 목록] 폴더 칩으로 필터링
+// ---------------------------------------------------
+function renderStudyFolderChips() {
+    const container = $('study-folder-chips');
+    container.innerHTML = '';
+
+    const makeChip = (id, label) => {
+        const btn = document.createElement('button');
+        btn.className = 'folder-chip' + (studyFolderId === id ? ' active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+            studyFolderId = id;
+            renderStudyFolderChips();
+            renderStudyList();
+        });
+        container.appendChild(btn);
+    };
+
+    makeChip('all', `전체 ${wordBank.length}`);
+    folders.forEach(f => makeChip(f.id, `${f.name} ${wordBank.filter(w => w.folderId === f.id).length}`));
+}
 
 function renderStudyList() {
-    const container = document.getElementById('study-list');
+    const container = $('study-list');
     container.innerHTML = '';
-    if(wordBank.length === 0) return container.innerHTML = '<p style="text-align:center;">등록된 단어가 없습니다.</p>';
+    const list = studyFolderId === 'all' ? wordBank : wordBank.filter(w => w.folderId === studyFolderId);
+    if (list.length === 0) return container.innerHTML = '<p style="text-align:center; grid-column:1/-1;">등록된 단어가 없습니다.</p>';
 
-    [...wordBank].reverse().forEach(item => {
+    [...list].reverse().forEach(item => {
         const card = document.createElement('div');
         card.className = 'word-card';
 
         const wordText = document.createElement('span');
         wordText.textContent = item.word;
         card.appendChild(wordText);
+
+        if (studyFolderId === 'all') {
+            const tag = document.createElement('span');
+            tag.className = 'word-folder-tag';
+            tag.textContent = folderName(item.folderId);
+            card.appendChild(tag);
+        }
 
         const delBtn = document.createElement('button');
         delBtn.className = 'delete-word-btn';
@@ -268,36 +614,45 @@ function renderStudyList() {
     });
 }
 
-// 잘못 등록된 단어 삭제 (개인 기기 로컬 단어장에서만 제거됨. GitHub 원본 파일은 그대로이므로
-// 다음에 [단어장 새로고침]을 누르면 다시 들어올 수 있어, 필요하면 GitHub 파일도 함께 수정해야 함)
+// 개인 기기 로컬 단어장에서만 제거된다. GitHub 원본 파일은 그대로이므로
+// [단어장 새로고침] 시 다시 들어올 수 있어, 필요하면 GitHub 파일도 함께 수정해야 한다.
 function deleteWord(id, event) {
-    if(event) event.stopPropagation(); // 카드 클릭(사전 열기)으로 이벤트가 전파되지 않도록 방지
+    if (event) event.stopPropagation();
     const target = wordBank.find(w => w.id === id);
-    if(!target) return;
-    if(!confirm(`'${target.word}' 단어를 삭제할까요?`)) return;
+    if (!target) return;
+    if (!confirm(`'${target.word}' 단어를 삭제할까요?`)) return;
 
     wordBank = wordBank.filter(w => w.id !== id);
-    saveLocalCache();
+    saveProfileData();
     updateWordCount();
+    renderStudyFolderChips();
     renderStudyList();
     renderPresetWordPicker();
 }
 
+// ---------------------------------------------------
+// [누적 테스트 (받아쓰기 퀴즈)]
+// ---------------------------------------------------
 function startCumulativeTest() {
-    if(wordBank.length === 0) return document.getElementById('quiz-container').innerHTML = '<p>단어를 등록해 주세요.</p>';
-    currentQuizList = [...wordBank].sort((a, b) => b.incorrectCount - a.incorrectCount || Math.random() - 0.5).slice(0, 20);
+    const pool = quizFolderId === 'all' ? wordBank : wordBank.filter(w => w.folderId === quizFolderId);
+    if (pool.length === 0) {
+        $('quiz-container').innerHTML = '<p>이 범위에 단어가 없어요. 단어를 먼저 등록해 주세요.</p>';
+        $('quiz-progress').innerText = '';
+        return;
+    }
+    currentQuizList = [...pool].sort((a, b) => b.incorrectCount - a.incorrectCount || Math.random() - 0.5).slice(0, 20);
     currentQuizIndex = 0;
     renderQuiz();
 }
 
 function renderQuiz() {
-    const container = document.getElementById('quiz-container');
-    const progress = document.getElementById('quiz-progress');
+    const container = $('quiz-container');
+    const progress = $('quiz-progress');
 
-    if(currentQuizIndex >= currentQuizList.length) {
+    if (currentQuizIndex >= currentQuizList.length) {
         container.innerHTML = `<h2>🎉 테스트 완료!</h2>`;
         progress.innerText = '';
-        saveLocalCache(); // 테스트 결과(오답 카운트 등)를 이 기기에 저장
+        saveProfileData();
         return;
     }
 
@@ -305,21 +660,23 @@ function renderQuiz() {
     quizIncorrectCount = 0;
 
     container.innerHTML = `
-        <button class="audio-btn" id="quiz-audio-btn">🔊</button>
+        <button class="audio-btn" id="quiz-audio-btn" aria-label="단어 듣기">🔊</button>
         <div class="hint-text" id="hint-zone"></div>
-        <input type="text" id="quiz-input" class="quiz-input" autocomplete="off" autofocus onkeyup="checkEnter(event)">
-        <button class="btn-main" onclick="validateAnswer()">정답 확인</button>
+        <input type="text" id="quiz-input" class="quiz-input" autocomplete="off" autocapitalize="none" autocorrect="off">
+        <button class="btn-main" id="quiz-submit-btn">정답 확인</button>
     `;
-    document.getElementById('quiz-audio-btn').addEventListener('click', () => playTTS(currentItem.word));
-    document.getElementById('hint-zone').textContent = generateHintBlank(currentItem.word, 0);
+    $('quiz-audio-btn').addEventListener('click', () => playTTS(currentItem.word));
+    $('quiz-submit-btn').addEventListener('click', validateAnswer);
+    $('quiz-input').addEventListener('keyup', (e) => { if (e.key === 'Enter') validateAnswer(); });
+    $('hint-zone').textContent = generateHintBlank(currentItem.word, 0);
 
     progress.innerText = `문제: ${currentQuizIndex + 1} / ${currentQuizList.length}`;
     playTTS(currentItem.word);
-    setTimeout(() => document.getElementById('quiz-input').focus(), 300);
+    setTimeout(() => $('quiz-input').focus(), 300);
 }
 
 function generateHintBlank(word, penalty) {
-    return word.split('').map((c, i) => (i === 0 && penalty >= 1) || (['a','e','i','o','u'].includes(c) && penalty >= 2) ? c : '_').join(' ');
+    return word.split('').map((c, i) => (i === 0 && penalty >= 1) || (['a', 'e', 'i', 'o', 'u'].includes(c) && penalty >= 2) ? c : '_').join(' ');
 }
 
 function playTTS(text) {
@@ -331,33 +688,37 @@ function playTTS(text) {
     }
 }
 
-function checkEnter(e) { if(e.key === 'Enter') validateAnswer(); }
-
 function validateAnswer() {
-    const inputEl = document.getElementById('quiz-input');
+    const inputEl = $('quiz-input');
     const userAnswer = inputEl.value.trim().toLowerCase();
     const currentItem = currentQuizList[currentQuizIndex];
     const masterItem = wordBank.find(item => item.id === currentItem.id);
 
-    if(userAnswer === currentItem.word) {
-        if (quizIncorrectCount === 0) { masterItem.correctCount++; alert('🎯 완벽해요! +10 EXP'); gainExp(10); }
-        else { alert('🎯 정답입니다! (힌트 사용)'); }
-        currentQuizIndex++; renderQuiz();
+    if (userAnswer === currentItem.word) {
+        if (quizIncorrectCount === 0) { masterItem.correctCount++; showToast('🎯 완벽해요! +10 EXP'); gainExp(10); }
+        else { showToast('🎯 정답입니다! (힌트 사용)'); }
+        currentQuizIndex++;
+        renderQuiz();
     } else {
-        quizIncorrectCount++; masterItem.incorrectCount++;
-        alert('❌ 다시 한 번 들어보세요!');
-        inputEl.value = ''; inputEl.focus();
-        document.getElementById('hint-zone').innerText = generateHintBlank(currentItem.word, quizIncorrectCount);
+        quizIncorrectCount++;
+        masterItem.incorrectCount++;
+        showToast('❌ 다시 한 번 들어보세요!');
+        inputEl.value = '';
+        inputEl.focus();
+        $('hint-zone').textContent = generateHintBlank(currentItem.word, quizIncorrectCount);
         playTTS(currentItem.word);
     }
 }
 
+// ---------------------------------------------------
+// [오답 노트]
+// ---------------------------------------------------
 function renderWrongList() {
-    const container = document.getElementById('wrong-list');
+    const container = $('wrong-list');
     container.innerHTML = '';
-    const wrongWords = wordBank.filter(w => w.incorrectCount > 0).sort((a,b) => b.incorrectCount - a.incorrectCount);
+    const wrongWords = wordBank.filter(w => w.incorrectCount > 0).sort((a, b) => b.incorrectCount - a.incorrectCount);
 
-    if(wrongWords.length === 0) return container.innerHTML = '<p style="text-align:center;">🎉 틀린 단어가 없습니다!</p>';
+    if (wrongWords.length === 0) return container.innerHTML = '<p style="text-align:center; grid-column:1/-1;">🎉 틀린 단어가 없습니다!</p>';
 
     wrongWords.forEach(item => {
         const card = document.createElement('div');
@@ -365,7 +726,7 @@ function renderWrongList() {
 
         const title = document.createElement('div');
         title.className = 'wrong-title';
-        title.textContent = item.word; // textContent 사용: 단어에 HTML/스크립트가 섞여 있어도 텍스트로만 표시됨
+        title.textContent = item.word;
 
         const badge = document.createElement('div');
         badge.className = 'wrong-badge';
@@ -392,3 +753,59 @@ function renderWrongList() {
         container.appendChild(card);
     });
 }
+
+// ---------------------------------------------------
+// [초기화]
+// ---------------------------------------------------
+function migrateLegacyGithubConfig() {
+    // v1 시절 키(githubConfig)를 v2 키(cloudConfig)로 1회 이전
+    if (AppStorage.get('cloudConfig')) return;
+    try {
+        const legacy = JSON.parse(localStorage.getItem('githubConfig') || 'null');
+        if (legacy) {
+            AppStorage.set('cloudConfig', legacy);
+            localStorage.removeItem('githubConfig');
+        }
+    } catch (e) { /* 손상된 데이터는 무시 */ }
+}
+
+function bindStaticEvents() {
+    // 탭
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
+    // 프로필
+    $('btn-new-profile').addEventListener('click', openProfileForm);
+    $('btn-create-profile').addEventListener('click', createProfileFromForm);
+    $('btn-cancel-profile').addEventListener('click', () => { $('profile-form').hidden = true; });
+    $('btn-switch-profile').addEventListener('click', () => { Profiles.logout(); showProfileScreen(); });
+    $('profile-chip').addEventListener('click', () => { Profiles.logout(); showProfileScreen(); });
+
+    // 단어 관리
+    $('btn-save-words').addEventListener('click', saveWords);
+    $('btn-add-folder').addEventListener('click', addFolder);
+    $('btn-del-folder').addEventListener('click', deleteFolder);
+    $('preset-search').addEventListener('input', renderPresetWordPicker);
+    $('btn-preset-all-on').addEventListener('click', () => selectAllPresetWords(true));
+    $('btn-preset-all-off').addEventListener('click', () => selectAllPresetWords(false));
+    $('btn-preset-add-300').addEventListener('click', addAllPresetWords);
+    $('btn-preset-add-selected').addEventListener('click', addSelectedPresetWords);
+
+    // 테스트 범위 변경 시 새 테스트 시작
+    $('quiz-folder-select').addEventListener('change', (e) => { quizFolderId = e.target.value; startCumulativeTest(); });
+
+    // 클라우드 설정
+    $('btn-save-cloud').addEventListener('click', saveCloudConfig);
+    $('btn-fetch-master').addEventListener('click', fetchMasterWords);
+}
+
+function init() {
+    migrateLegacyGithubConfig();
+    Profiles.migrateLegacyData();
+    githubConfig = AppStorage.get('cloudConfig', { rawUrl: '', token: '' });
+    bindStaticEvents();
+
+    if (Profiles.active()) enterApp();
+    else showProfileScreen();
+}
+
+init();
