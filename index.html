@@ -38,7 +38,10 @@
             <span id="profile-chip-icon">🦄</span>
             <span id="profile-chip-name">프로필</span>
         </div>
-        <button id="btn-switch-profile" class="btn-ghost">프로필 전환</button>
+        <div class="header-actions">
+            <button id="btn-open-settings" class="btn-ghost" hidden>⚙️ 설정</button>
+            <button id="btn-switch-profile" class="btn-ghost">프로필 전환</button>
+        </div>
     </header>
 
     <div class="container">
@@ -106,7 +109,27 @@
             <div id="wrong-list" class="word-grid"></div>
         </div>
 
-        <!-- 5. 마스터 단어장 설정 (GitHub 파일 읽기 전용) -->
+        <!-- 5. 상태 (레벨/테스트 현황) -->
+        <div id="sec-status" class="section">
+            <div class="status-cards">
+                <div class="status-card">
+                    <div class="status-value" id="status-level">Lv.1</div>
+                    <div class="status-label" id="status-level-title">단어 새싹</div>
+                </div>
+                <button class="status-card clickable" id="status-tested-card">
+                    <div class="status-value" id="status-tested-count">0</div>
+                    <div class="status-label">테스트한 단어</div>
+                </button>
+                <button class="status-card clickable" id="status-wrong-card">
+                    <div class="status-value" id="status-wrong-count">0</div>
+                    <div class="status-label">오답 단어</div>
+                </button>
+            </div>
+            <p class="desc-text" id="status-hint" style="text-align:center;">건수를 선택하면 단어 목록이 표시됩니다.</p>
+            <div id="status-list" class="word-grid"></div>
+        </div>
+
+        <!-- 6. 마스터 단어장 설정 (관리자 프로필 전용, 상단 ⚙️ 버튼으로 진입) -->
         <div id="sec-cloud" class="section">
             <h3>☁️ 마스터 단어장 연동 설정</h3>
             <p class="desc-text">GitHub에 올려둔 단어 목록 파일을 읽어와서 이 기기의 현재 프로필 단어장에 추가합니다. (개인 학습 진도는 동기화되지 않고 이 기기에만 저장됩니다)</p>
@@ -133,7 +156,7 @@
         <button class="tab-btn" data-tab="study"><span class="tab-icon">📖</span><span class="tab-label">학습</span></button>
         <button class="tab-btn" data-tab="test"><span class="tab-icon">🎧</span><span class="tab-label">테스트</span></button>
         <button class="tab-btn" data-tab="wrong"><span class="tab-icon">❗</span><span class="tab-label">오답</span></button>
-        <button class="tab-btn" data-tab="cloud"><span class="tab-icon">⚙️</span><span class="tab-label">설정</span></button>
+        <button class="tab-btn" data-tab="status"><span class="tab-icon">📊</span><span class="tab-label">상태</span></button>
     </nav>
 </div>
 
