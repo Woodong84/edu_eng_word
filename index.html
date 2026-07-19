@@ -2,94 +2,152 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>초등 영단어 마스터 (GitHub 클라우드 연동)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#4f46e5">
+    <title>초등 영단어 마스터</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-tier="1">
 
-<div class="container">
-    <h1>Sia의 영어 단어</h1>
-    
-    <div class="reward-zone">
-        <div id="sync-status" class="sync-badge">☁️ 마스터 단어장 연동됨</div>
-        <div class="reward-header">
-            <span id="level-text">Lv.1 단어 초보자</span>
-            <span id="exp-text">0 / 100 EXP</span>
+<!-- ==================== 프로필 선택 화면 (로그인) ==================== -->
+<div id="profile-screen" class="profile-screen">
+    <h1 class="app-title">📚 영단어 마스터</h1>
+    <p class="profile-hint">학습할 프로필을 선택하세요</p>
+    <div id="profile-list" class="profile-list"></div>
+    <button class="btn-main" id="btn-new-profile">➕ 새 프로필 만들기</button>
+
+    <div id="profile-form" class="profile-form" hidden>
+        <h3>새 프로필 만들기</h3>
+        <input type="text" id="new-profile-name" placeholder="이름 (예: 시아)" maxlength="12" autocomplete="off">
+        <label class="form-label">아이콘 선택</label>
+        <div id="icon-picker" class="icon-picker"></div>
+        <label class="form-label">상위 계정 (형/누나/부모 계정 아래에 만들 때만 선택)</label>
+        <select id="parent-select"></select>
+        <div class="btn-row">
+            <button class="btn-sync btn-ok" id="btn-create-profile">만들기</button>
+            <button class="btn-sync btn-gray" id="btn-cancel-profile">취소</button>
         </div>
-        <div class="exp-bar-container">
-            <div id="exp-fill" class="exp-fill"></div>
-        </div>
-        <div id="sticker-board" class="sticker-board"></div>
-    </div>
-    
-    <div class="tab-menu">
-        <button class="tab-btn active" onclick="switchTab('manage')">단어 입력</button>
-        <button class="tab-btn" onclick="switchTab('study')">사전 학습</button>
-        <button class="tab-btn" onclick="switchTab('test')">누적 테스트</button>
-        <button class="tab-btn" onclick="switchTab('wrong')">오답 노트</button>
-        <button class="tab-btn" style="background:#e0e7ff; color:#3730a3;" onclick="switchTab('cloud')">☁️ 설정</button>
-    </div>
-
-    <!-- 1. 단어 관리 -->
-    <div id="sec-manage" class="section active">
-        <textarea id="word-input" placeholder="apple, banana, school..."></textarea>
-        <button class="btn-main" onclick="saveWords()">단어 저장하기</button>
-        <h4 style="margin-top: 20px;">현재 저장된 총 단어 수: <span id="total-count" style="color:var(--primary)">0</span>개</h4>
-
-        <div style="margin-top:25px; border-top:1px solid #e2e8f0; padding-top:15px;">
-            <h4 style="margin-bottom:8px;">📚 초등 필수 단어 300개에서 선택하기</h4>
-            <input type="text" id="preset-search" placeholder="단어 검색 (예: apple)" oninput="renderPresetWordPicker()">
-            <div class="cloud-actions" style="margin-bottom:10px;">
-                <button class="btn-sync" style="background:var(--success);" onclick="selectAllPresetWords(true)">전체 선택</button>
-                <button class="btn-sync" style="background:#94a3b8;" onclick="selectAllPresetWords(false)">전체 해제</button>
-                <button class="btn-sync" style="background:var(--dark);" onclick="addAllPresetWords()">300개 한번에 추가</button>
-            </div>
-            <div id="preset-word-picker" style="max-height:280px; overflow-y:auto; border:2px solid #cbd5e1; border-radius:8px; padding:10px;"></div>
-            <div style="font-size:12px; color:#64748b; margin:8px 0;">선택됨: <span id="preset-selected-count">0</span>개</div>
-            <button class="btn-main" onclick="addSelectedPresetWords()">선택한 단어 추가하기</button>
-        </div>
-    </div>
-
-    <!-- 2. 학습 -->
-    <div id="sec-study" class="section">
-        <div id="study-list" class="word-grid"></div>
-    </div>
-
-    <!-- 3. 테스트 -->
-    <div id="sec-test" class="section">
-        <div id="quiz-container" class="quiz-box"></div>
-        <div id="quiz-progress" style="text-align: center; font-weight: bold;"></div>
-    </div>
-
-    <!-- 4. 오답 노트 -->
-    <div id="sec-wrong" class="section">
-        <div id="wrong-list" class="word-grid"></div>
-    </div>
-
-    <!-- 5. 마스터 단어장 설정 (GitHub 파일 읽기 전용) -->
-    <div id="sec-cloud" class="section">
-        <h3>☁️ 마스터 단어장 연동 설정</h3>
-        <p style="font-size:12px; color:#64748b; margin-bottom:15px;">GitHub에 올려둔 단어 목록 파일을 읽어와서 이 기기의 단어장에 추가합니다. (개인 학습 진도는 동기화되지 않고 이 기기에만 저장됩니다)</p>
-        
-        <div class="cloud-form">
-            <label>GitHub 단어장 파일 주소 (Raw URL)</label>
-            <input type="text" id="gh-raw-url" placeholder="https://raw.githubusercontent.com/계정/저장소/main/words.txt">
-
-            <label>읽기 전용 토큰 (비공개 저장소인 경우만, 선택)</label>
-            <input type="password" id="gh-token" placeholder="비공개 저장소가 아니면 비워두세요">
-            
-            <div class="cloud-actions">
-                <button class="btn-sync" onclick="saveCloudConfig()">설정 저장</button>
-                <button class="btn-sync" style="background:var(--success);" onclick="fetchMasterWords()">☁️ 단어장 새로고침</button>
-            </div>
-        </div>
-        <p style="font-size:11px; color:#64748b;">※ 단어 등록/수정은 GitHub 웹사이트나 앱에서 이 파일을 직접 편집(Commit)해서 관리하세요. 이 화면은 그 내용을 "불러오기"만 합니다.</p>
     </div>
 </div>
 
+<!-- ==================== 학습 앱 본체 ==================== -->
+<div id="app-root" hidden>
+
+    <header class="app-header">
+        <div class="profile-chip" id="profile-chip" role="button" title="프로필 전환">
+            <span id="profile-chip-icon">🦄</span>
+            <span id="profile-chip-name">프로필</span>
+        </div>
+        <button id="btn-switch-profile" class="btn-ghost">프로필 전환</button>
+    </header>
+
+    <div class="container">
+        <div class="reward-zone">
+            <div id="sync-status" class="sync-badge">☁️ 마스터 단어장 연동됨</div>
+            <div class="reward-header">
+                <span id="level-text">Lv.1 단어 새싹</span>
+                <span id="exp-text">0 / 100 EXP</span>
+            </div>
+            <div class="exp-bar-container">
+                <div id="exp-fill" class="exp-fill"></div>
+            </div>
+            <div id="sticker-board" class="sticker-board"></div>
+        </div>
+
+        <!-- 1. 단어 관리 -->
+        <div id="sec-manage" class="section active">
+            <div class="folder-row">
+                <label class="form-label" style="margin:0; flex-shrink:0;">저장 폴더</label>
+                <select id="folder-select"></select>
+                <button class="btn-icon" id="btn-add-folder" title="새 폴더 만들기">➕</button>
+                <button class="btn-icon" id="btn-del-folder" title="현재 폴더 삭제">🗑️</button>
+            </div>
+            <textarea id="word-input" placeholder="apple, banana, school..."></textarea>
+            <button class="btn-main" id="btn-save-words">단어 저장하기</button>
+            <h4 class="count-line">현재 저장된 총 단어 수: <span id="total-count" class="count-num">0</span>개</h4>
+
+            <div class="preset-zone">
+                <h4>📚 초등 필수 단어 300개에서 선택하기</h4>
+                <input type="text" id="preset-search" placeholder="단어 검색 (예: apple)" autocomplete="off">
+                <div class="btn-row">
+                    <button class="btn-sync btn-ok" id="btn-preset-all-on">전체 선택</button>
+                    <button class="btn-sync btn-gray" id="btn-preset-all-off">전체 해제</button>
+                    <button class="btn-sync btn-dark" id="btn-preset-add-300">300개 한번에</button>
+                </div>
+                <div id="preset-word-picker" class="preset-picker"></div>
+                <div class="preset-count-line">선택됨: <span id="preset-selected-count">0</span>개</div>
+                <button class="btn-main" id="btn-preset-add-selected">선택한 단어 추가하기</button>
+            </div>
+        </div>
+
+        <!-- 2. 사전 학습 -->
+        <div id="sec-study" class="section">
+            <div id="study-folder-chips" class="folder-chips"></div>
+            <div id="study-list" class="word-grid"></div>
+        </div>
+
+        <!-- 3. 누적 테스트 -->
+        <div id="sec-test" class="section">
+            <div class="folder-row">
+                <label class="form-label" style="margin:0; flex-shrink:0;">테스트 범위</label>
+                <select id="quiz-folder-select"></select>
+            </div>
+            <div id="quiz-container" class="quiz-box"></div>
+            <div id="quiz-progress" class="quiz-progress"></div>
+        </div>
+
+        <!-- 4. 오답 노트 -->
+        <div id="sec-wrong" class="section">
+            <div id="wrong-list" class="word-grid"></div>
+        </div>
+
+        <!-- 5. 마스터 단어장 설정 (GitHub 파일 읽기 전용) -->
+        <div id="sec-cloud" class="section">
+            <h3>☁️ 마스터 단어장 연동 설정</h3>
+            <p class="desc-text">GitHub에 올려둔 단어 목록 파일을 읽어와서 이 기기의 현재 프로필 단어장에 추가합니다. (개인 학습 진도는 동기화되지 않고 이 기기에만 저장됩니다)</p>
+
+            <div class="cloud-form">
+                <label>GitHub 단어장 파일 주소 (Raw URL)</label>
+                <input type="text" id="gh-raw-url" placeholder="https://raw.githubusercontent.com/계정/저장소/main/words.txt">
+
+                <label>읽기 전용 토큰 (비공개 저장소인 경우만, 선택)</label>
+                <input type="password" id="gh-token" placeholder="비공개 저장소가 아니면 비워두세요">
+
+                <div class="btn-row">
+                    <button class="btn-sync btn-dark" id="btn-save-cloud">설정 저장</button>
+                    <button class="btn-sync btn-ok" id="btn-fetch-master">☁️ 단어장 새로고침</button>
+                </div>
+            </div>
+            <p class="desc-text small">※ 단어 등록/수정은 GitHub 웹사이트나 앱에서 이 파일을 직접 편집(Commit)해서 관리하세요. 이 화면은 그 내용을 "불러오기"만 하며, 불러온 단어는 [☁️ 마스터] 폴더에 저장됩니다. 이미 있는 단어는 중복 확인 후 자동으로 건너뜁니다.</p>
+        </div>
+    </div>
+
+    <!-- 하단 탭 바 (모바일 우선) -->
+    <nav class="tab-menu">
+        <button class="tab-btn active" data-tab="manage"><span class="tab-icon">📝</span><span class="tab-label">단어</span></button>
+        <button class="tab-btn" data-tab="study"><span class="tab-icon">📖</span><span class="tab-label">학습</span></button>
+        <button class="tab-btn" data-tab="test"><span class="tab-icon">🎧</span><span class="tab-label">테스트</span></button>
+        <button class="tab-btn" data-tab="wrong"><span class="tab-icon">❗</span><span class="tab-label">오답</span></button>
+        <button class="tab-btn" data-tab="cloud"><span class="tab-icon">⚙️</span><span class="tab-label">설정</span></button>
+    </nav>
+</div>
+
+<!-- 레벨업 이펙트 오버레이 -->
+<div id="levelup-overlay" class="levelup-overlay" hidden>
+    <div class="levelup-card">
+        <div class="levelup-title">🎉 LEVEL UP!</div>
+        <div class="levelup-level" id="levelup-level"></div>
+        <div class="levelup-sticker" id="levelup-sticker"></div>
+    </div>
+</div>
+
+<!-- 토스트 알림 -->
+<div id="toast-zone" class="toast-zone"></div>
+
 <!-- 초등 필수 단어 300개 데이터 (별도 파일로 관리, 이 파일만 수정하면 됨) -->
 <script src="js/data/elementary-words.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/profiles.js"></script>
 <script src="js/app.js"></script>
 
 </body>
