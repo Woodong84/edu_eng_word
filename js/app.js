@@ -665,7 +665,10 @@ function renderQuiz() {
         <input type="text" id="quiz-input" class="quiz-input" autocomplete="off" autocapitalize="none" autocorrect="off">
         <button class="btn-main" id="quiz-submit-btn">정답 확인</button>
     `;
-    $('quiz-audio-btn').addEventListener('click', () => playTTS(currentItem.word));
+    $('quiz-audio-btn').addEventListener('click', () => {
+        playTTS(currentItem.word);
+        $('quiz-input').focus(); // 듣기 후 바로 입력할 수 있도록 답 입력창으로 커서 이동
+    });
     $('quiz-submit-btn').addEventListener('click', validateAnswer);
     $('quiz-input').addEventListener('keyup', (e) => { if (e.key === 'Enter') validateAnswer(); });
     $('hint-zone').textContent = generateHintBlank(currentItem.word, 0);
@@ -679,12 +682,28 @@ function generateHintBlank(word, penalty) {
     return word.split('').map((c, i) => (i === 0 && penalty >= 1) || (['a', 'e', 'i', 'o', 'u'].includes(c) && penalty >= 2) ? c : '_').join(' ');
 }
 
+let currentUtterance = null; // 크롬 계열에서 utterance가 재생 중 GC되며 소리가 끊기는 버그 방지용 참조 유지
+
 function playTTS(text) {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'en-US'; u.rate = 0.8;
-        window.speechSynthesis.speak(u);
+    if (!('speechSynthesis' in window)) return;
+    const synth = window.speechSynthesis;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US'; u.rate = 0.8;
+    currentUtterance = u;
+
+    if (synth.speaking || synth.pending) {
+        // 모바일(특히 안드로이드 크롬)은 cancel() 직후의 speak()를 조용히 무시하는
+        // 버그가 있어, 재생 중일 때만 cancel 후 잠깐 기다렸다가 재생한다.
+        synth.cancel();
+        setTimeout(() => {
+            if (synth.paused) synth.resume();
+            synth.speak(u);
+        }, 80);
+    } else {
+        // 유휴 상태면 사용자 터치 이벤트 컨텍스트 안에서 바로 재생
+        // (iOS는 첫 재생이 사용자 제스처 안에서 일어나야 소리가 허용됨)
+        if (synth.paused) synth.resume();
+        synth.speak(u);
     }
 }
 
