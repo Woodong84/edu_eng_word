@@ -67,16 +67,21 @@
             <h4 class="count-line">현재 저장된 총 단어 수: <span id="total-count" class="count-num">0</span>개</h4>
 
             <div class="preset-zone">
-                <h4>📚 초등 필수 단어 300개에서 선택하기</h4>
-                <input type="text" id="preset-search" placeholder="단어 검색 (예: apple)" autocomplete="off">
-                <div class="btn-row">
-                    <button class="btn-sync btn-ok" id="btn-preset-all-on">전체 선택</button>
-                    <button class="btn-sync btn-gray" id="btn-preset-all-off">전체 해제</button>
-                    <button class="btn-sync btn-dark" id="btn-preset-add-300">300개 한번에</button>
+                <button class="preset-toggle" id="btn-toggle-preset">
+                    <span>📚 초등 필수 단어 300개에서 선택하기</span>
+                    <span class="preset-arrow" id="preset-arrow">▼</span>
+                </button>
+                <div id="preset-body" hidden>
+                    <input type="text" id="preset-search" placeholder="단어 검색 (예: apple)" autocomplete="off">
+                    <div class="btn-row">
+                        <button class="btn-sync btn-ok" id="btn-preset-all-on">전체 선택</button>
+                        <button class="btn-sync btn-gray" id="btn-preset-all-off">전체 해제</button>
+                        <button class="btn-sync btn-dark" id="btn-preset-add-300">300개 한번에</button>
+                    </div>
+                    <div id="preset-word-picker" class="preset-picker"></div>
+                    <div class="preset-count-line">선택됨: <span id="preset-selected-count">0</span>개</div>
+                    <button class="btn-main" id="btn-preset-add-selected">선택한 단어 추가하기</button>
                 </div>
-                <div id="preset-word-picker" class="preset-picker"></div>
-                <div class="preset-count-line">선택됨: <span id="preset-selected-count">0</span>개</div>
-                <button class="btn-main" id="btn-preset-add-selected">선택한 단어 추가하기</button>
             </div>
         </div>
 

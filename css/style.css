@@ -124,7 +124,9 @@ button.btn-main:active { background: var(--primary-hover); }
 
 /* ==================== 프리셋 단어 선택 ==================== */
 .preset-zone { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
-.preset-zone h4 { margin-bottom: 8px; }
+.preset-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px; min-height: 48px; margin-bottom: 10px; background: var(--accent-soft); color: var(--text); border: 2px solid var(--primary); border-radius: 10px; font-size: 15px; font-weight: bold; cursor: pointer; text-align: left; }
+.preset-arrow { font-size: 12px; color: var(--primary); transition: transform 0.2s; }
+.preset-toggle.open .preset-arrow { transform: rotate(180deg); }
 .preset-picker { max-height: 280px; overflow-y: auto; border: 2px solid #cbd5e1; border-radius: 10px; padding: 10px; }
 .preset-count-line { font-size: 12px; color: #64748b; margin: 8px 0; }
 .preset-cat { margin-bottom: 12px; }

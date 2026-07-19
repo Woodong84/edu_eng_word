@@ -479,6 +479,8 @@ async function fetchMasterWords() {
 // [초등 필수 단어 300개 프리셋 선택 UI]
 // ---------------------------------------------------
 function renderPresetWordPicker() {
+    // 접혀 있는 동안은 렌더링을 생략하고, 펼칠 때 다시 그린다 (300개 칩 불필요 렌더 방지)
+    if ($('preset-body').hidden) return;
     const container = $('preset-word-picker');
     const searchTerm = $('preset-search').value.trim().toLowerCase();
     container.innerHTML = '';
@@ -815,6 +817,12 @@ function bindStaticEvents() {
     $('btn-save-words').addEventListener('click', saveWords);
     $('btn-add-folder').addEventListener('click', addFolder);
     $('btn-del-folder').addEventListener('click', deleteFolder);
+    $('btn-toggle-preset').addEventListener('click', () => {
+        const body = $('preset-body');
+        body.hidden = !body.hidden;
+        $('btn-toggle-preset').classList.toggle('open', !body.hidden);
+        if (!body.hidden) renderPresetWordPicker();
+    });
     $('preset-search').addEventListener('input', renderPresetWordPicker);
     $('btn-preset-all-on').addEventListener('click', () => selectAllPresetWords(true));
     $('btn-preset-all-off').addEventListener('click', () => selectAllPresetWords(false));
