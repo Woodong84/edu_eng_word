@@ -609,7 +609,19 @@ function renderStudyList() {
         delBtn.addEventListener('click', (e) => deleteWord(item.id, e));
         card.appendChild(delBtn);
 
-        card.addEventListener('click', () => window.open(`https://en.dict.naver.com/#/search?query=${encodeURIComponent(item.word)}`, '_blank'));
+        // 사전은 카드 왼쪽 위 📖 버튼으로 분리
+        const dictBtn = document.createElement('button');
+        dictBtn.className = 'dict-word-btn';
+        dictBtn.textContent = '📖';
+        dictBtn.setAttribute('aria-label', `${item.word} 사전 열기`);
+        dictBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.open(`https://en.dict.naver.com/#/search?query=${encodeURIComponent(item.word)}`, '_blank');
+        });
+        card.appendChild(dictBtn);
+
+        // 카드 탭 = 발음 재생 (모바일 학습 시 바로 들을 수 있도록)
+        card.addEventListener('click', () => playTTS(item.word));
         container.appendChild(card);
     });
 }
@@ -817,11 +829,24 @@ function bindStaticEvents() {
     $('btn-fetch-master').addEventListener('click', fetchMasterWords);
 }
 
+// 카카오톡/네이버/인스타그램 등 인앱 브라우저는 음성합성(TTS)을 지원하지 않거나
+// 무음 처리하는 경우가 많아, 감지되면 외부 브라우저로 열도록 안내한다.
+function warnIfTtsUnavailable() {
+    const ua = navigator.userAgent;
+    const isInAppBrowser = /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|Line\//i.test(ua);
+    if (!('speechSynthesis' in window)) {
+        showToast('📢 이 브라우저는 발음 소리를 지원하지 않아요.\n크롬 또는 사파리에서 열어주세요.', 5000);
+    } else if (isInAppBrowser) {
+        showToast('📢 카카오톡 등 앱 안에서 열면 발음 소리가 나지 않을 수 있어요.\n메뉴에서 [다른 브라우저로 열기]를 눌러주세요.', 5000);
+    }
+}
+
 function init() {
     migrateLegacyGithubConfig();
     Profiles.migrateLegacyData();
     githubConfig = AppStorage.get('cloudConfig', { rawUrl: '', token: '' });
     bindStaticEvents();
+    warnIfTtsUnavailable();
 
     if (Profiles.active()) enterApp();
     else showProfileScreen();
