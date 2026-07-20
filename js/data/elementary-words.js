@@ -340,3 +340,86 @@ const ELEMENTARY_WORD_CATEGORIES = {
         "mirror"
     ]
 };
+
+// 프리셋 300개 단어의 한글 뜻. 테스트 화면 Hint 아래에 표시된다.
+// 사용자가 직접 등록한 단어라도 여기 있는 단어와 철자가 같으면 자동으로 뜻이 붙는다(addWordsToBank).
+const ELEMENTARY_WORD_MEANINGS = {
+    // 동물
+    dog: '개', cat: '고양이', bird: '새', fish: '물고기', lion: '사자', tiger: '호랑이', bear: '곰',
+    rabbit: '토끼', horse: '말', cow: '소', pig: '돼지', duck: '오리', sheep: '양', monkey: '원숭이',
+    elephant: '코끼리', giraffe: '기린', zebra: '얼룩말', frog: '개구리', snake: '뱀', mouse: '쥐',
+    chicken: '닭', goat: '염소', deer: '사슴', owl: '부엉이', bee: '벌', ant: '개미', butterfly: '나비',
+    spider: '거미', whale: '고래', dolphin: '돌고래',
+    // 색깔
+    red: '빨간색', blue: '파란색', yellow: '노란색', green: '초록색', black: '검은색', white: '흰색',
+    purple: '보라색', pink: '분홍색', brown: '갈색', gray: '회색', gold: '금색',
+    // 숫자
+    one: '하나(1)', two: '둘(2)', three: '셋(3)', four: '넷(4)', five: '다섯(5)', six: '여섯(6)',
+    seven: '일곱(7)', eight: '여덟(8)', nine: '아홉(9)', ten: '열(10)', eleven: '열하나(11)',
+    twelve: '열둘(12)', thirteen: '열셋(13)', fourteen: '열넷(14)', fifteen: '열다섯(15)',
+    sixteen: '열여섯(16)', seventeen: '열일곱(17)', eighteen: '열여덟(18)', nineteen: '열아홉(19)',
+    twenty: '스물(20)',
+    // 가족
+    mother: '어머니', father: '아버지', sister: '언니/누나/여동생', brother: '형/오빠/남동생',
+    grandmother: '할머니', grandfather: '할아버지', aunt: '이모/고모', uncle: '삼촌', cousin: '사촌',
+    baby: '아기', family: '가족',
+    // 신체
+    head: '머리', eye: '눈', ear: '귀', nose: '코', mouth: '입', hand: '손', foot: '발', arm: '팔',
+    leg: '다리', finger: '손가락', hair: '머리카락', tooth: '이(치아)', neck: '목', shoulder: '어깨',
+    knee: '무릎',
+    // 음식
+    apple: '사과', banana: '바나나', orange: '오렌지', grape: '포도', strawberry: '딸기',
+    watermelon: '수박', bread: '빵', rice: '밥/쌀', milk: '우유', water: '물', juice: '주스',
+    cake: '케이크', cookie: '쿠키', egg: '달걀', cheese: '치즈', meat: '고기', pizza: '피자',
+    candy: '사탕', chocolate: '초콜릿', 'ice-cream': '아이스크림',
+    // 학교
+    school: '학교', teacher: '선생님', student: '학생', book: '책', pencil: '연필', pen: '펜',
+    eraser: '지우개', ruler: '자', bag: '가방', desk: '책상', chair: '의자', classroom: '교실',
+    board: '칠판', paper: '종이', crayon: '크레용', scissors: '가위', glue: '풀', notebook: '공책',
+    homework: '숙제', test: '시험',
+    // 날씨-계절
+    sun: '해/태양', moon: '달', star: '별', sky: '하늘', rain: '비', snow: '눈', wind: '바람',
+    cloud: '구름', spring: '봄', summer: '여름', autumn: '가을', winter: '겨울',
+    // 옷
+    shirt: '셔츠', pants: '바지', dress: '원피스', skirt: '치마', shoes: '신발', socks: '양말',
+    hat: '모자', coat: '코트', jacket: '재킷', gloves: '장갑', scarf: '목도리', boots: '부츠',
+    // 운동-취미
+    soccer: '축구', baseball: '야구', basketball: '농구', tennis: '테니스', swimming: '수영',
+    running: '달리기', dancing: '춤추기', singing: '노래하기', drawing: '그림그리기', reading: '독서',
+    jumping: '점프하기', skating: '스케이트', cycling: '자전거타기', camping: '캠핑', hiking: '등산',
+    // 집
+    house: '집', room: '방', kitchen: '부엌', bathroom: '화장실', bedroom: '침실',
+    'living-room': '거실', door: '문', window: '창문', table: '탁자', bed: '침대', sofa: '소파',
+    lamp: '램프',
+    // 교통수단
+    car: '자동차', bus: '버스', train: '기차', airplane: '비행기', ship: '배', bicycle: '자전거',
+    boat: '보트', taxi: '택시', subway: '지하철', truck: '트럭', motorcycle: '오토바이',
+    helicopter: '헬리콥터',
+    // 자연
+    tree: '나무', flower: '꽃', grass: '잔디', mountain: '산', river: '강', lake: '호수', sea: '바다',
+    ocean: '대양', forest: '숲', island: '섬', beach: '해변', rock: '바위', sand: '모래', leaf: '나뭇잎',
+    garden: '정원',
+    // 동작(동사)
+    run: '달리다', jump: '뛰다', walk: '걷다', eat: '먹다', drink: '마시다', sleep: '자다',
+    read: '읽다', write: '쓰다', sing: '노래하다', dance: '춤추다', play: '놀다', swim: '수영하다',
+    open: '열다', look: '보다', listen: '듣다', speak: '말하다', smile: '웃다', laugh: '웃다(소리내어)',
+    cry: '울다', help: '돕다', love: '사랑하다', like: '좋아하다', want: '원하다', need: '필요하다',
+    // 형용사
+    big: '큰', small: '작은', tall: '키가 큰', short: '짧은/키가 작은', long: '긴', happy: '행복한',
+    sad: '슬픈', angry: '화난', tired: '피곤한', hungry: '배고픈', thirsty: '목마른', hot: '뜨거운/더운',
+    cold: '차가운/추운', fast: '빠른', slow: '느린', strong: '강한', pretty: '예쁜', kind: '친절한',
+    smart: '똑똑한', brave: '용감한', funny: '재미있는',
+    // 시간-요일
+    today: '오늘', tomorrow: '내일', yesterday: '어제', morning: '아침', night: '밤', monday: '월요일',
+    tuesday: '화요일', wednesday: '수요일', thursday: '목요일', friday: '금요일', saturday: '토요일',
+    sunday: '일요일', week: '주(일주일)', month: '달(월)', year: '년(해)',
+    // 장소
+    park: '공원', zoo: '동물원', hospital: '병원', store: '가게', market: '시장', library: '도서관',
+    museum: '박물관', playground: '놀이터', farm: '농장', city: '도시', town: '마을', country: '나라',
+    restaurant: '식당', bank: '은행', station: '역',
+    // 생활용품
+    friend: '친구', name: '이름', color: '색깔', number: '숫자', letter: '글자/편지', word: '단어',
+    sentence: '문장', picture: '그림', music: '음악', game: '게임', toy: '장난감', ball: '공',
+    box: '상자', key: '열쇠', phone: '전화기', computer: '컴퓨터', television: '텔레비전',
+    radio: '라디오', clock: '시계', mirror: '거울'
+};

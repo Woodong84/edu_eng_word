@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#4f46e5">
     <title>초등 영단어 마스터</title>
     <!-- ?v= 값은 배포마다 올려서 모바일 브라우저가 이전 캐시 대신 새 파일을 받도록 한다 -->
-    <link rel="stylesheet" href="css/style.css?v=12">
+    <link rel="stylesheet" href="css/style.css?v=13">
 </head>
 <body data-tier="1">
 
@@ -67,12 +67,13 @@
         <!-- 1. 단어 관리 -->
         <div id="sec-manage" class="section active">
             <div class="folder-row">
-                <label class="form-label" style="margin:0; flex-shrink:0;">저장 폴더</label>
+                <label class="form-label" style="margin:0; flex-shrink:0;">테스트 폴더</label>
                 <select id="folder-select"></select>
                 <button class="btn-icon" id="btn-add-folder" title="새 폴더 만들기">➕</button>
                 <button class="btn-icon" id="btn-del-folder" title="현재 폴더 삭제">🗑️</button>
             </div>
-            <textarea id="word-input" placeholder="apple, banana, school..."></textarea>
+            <textarea id="word-input" placeholder="apple:사과, banana:바나나
+school (뜻은 생략 가능)"></textarea>
             <button class="btn-main" id="btn-save-words">단어 저장하기</button>
             <h4 class="count-line">현재 저장된 총 단어 수: <span id="total-count" class="count-num">0</span>개</h4>
 
@@ -105,7 +106,10 @@
                 <label class="form-label" style="margin:0; flex-shrink:0;">테스트 문제 수</label>
                 <select id="quiz-count-select"></select>
             </div>
-            <div id="study-folder-chips" class="folder-chips"></div>
+            <div class="study-toolbar">
+                <div id="study-folder-chips" class="folder-chips"></div>
+                <button class="btn-icon" id="btn-delete-all-words" title="전체 단어 삭제">🗑️</button>
+            </div>
             <div id="study-list" class="word-grid"></div>
         </div>
 
@@ -208,13 +212,13 @@
 <div id="toast-zone" class="toast-zone"></div>
 
 <!-- 초등 필수 단어 300개 데이터 (별도 파일로 관리, 이 파일만 수정하면 됨) -->
-<script src="js/data/elementary-words.js?v=12"></script>
-<script src="js/storage.js?v=12"></script>
-<script src="js/profiles.js?v=12"></script>
+<script src="js/data/elementary-words.js?v=13"></script>
+<script src="js/storage.js?v=13"></script>
+<script src="js/profiles.js?v=13"></script>
 <!-- Firebase: 로그인 관리/마스터 단어 DB/사용이력/랭킹. 로드 실패해도 위 로컬 기능은 그대로 동작한다 -->
-<script type="module" src="js/firebase-init.js?v=12"></script>
-<script src="js/cloud.js?v=12"></script>
-<script src="js/app.js?v=12"></script>
+<script type="module" src="js/firebase-init.js?v=13"></script>
+<script src="js/cloud.js?v=13"></script>
+<script src="js/app.js?v=13"></script>
 
 </body>
 </html>

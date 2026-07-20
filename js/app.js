@@ -51,9 +51,12 @@ function loadProfileData() {
     wordBank = AppStorage.get(profileKey('words'), []);
     userStats = AppStorage.get(profileKey('stats'), { level: 1, exp: 0, stickers: [] });
     folders = AppStorage.get(profileKey('folders'), [{ ...DEFAULT_FOLDER }]);
-    // 예전 데이터(폴더 개념 이전)에 folderId가 없으면 기본 폴더로 보정 후 즉시 저장
+    // 예전 데이터 보정: folderId가 없으면 기본 폴더로, meaning이 없으면 프리셋 사전에서 채운다
     let needsBackfill = false;
-    wordBank.forEach(w => { if (!w.folderId) { w.folderId = DEFAULT_FOLDER.id; needsBackfill = true; } });
+    wordBank.forEach(w => {
+        if (!w.folderId) { w.folderId = DEFAULT_FOLDER.id; needsBackfill = true; }
+        if (w.meaning === undefined) { w.meaning = ELEMENTARY_WORD_MEANINGS[w.word] || ''; needsBackfill = true; }
+    });
     if (needsBackfill) saveProfileData();
 }
 
@@ -460,12 +463,18 @@ function deleteFolder() {
 // [단어 추가/중복 검증]
 // 데이터 정합성 규칙: 소문자 정규화 후 프로필 내 중복 금지.
 // 결과로 추가/중복제외/형식오류 건수를 리포트한다.
+//
+// entries: 문자열 배열(["apple", ...]) 또는 {word, meaning} 객체 배열 모두 허용.
+// 뜻을 직접 입력하지 않았거나(문자열로 전달됨) 빈 값이면, 프리셋 300개 사전(ELEMENTARY_WORD_MEANINGS)에서
+// 같은 철자를 찾아 자동으로 채운다.
 // ---------------------------------------------------
-function addWordsToBank(words, { folderId = DEFAULT_FOLDER.id, source = 'manual' } = {}) {
+function addWordsToBank(entries, { folderId = DEFAULT_FOLDER.id, source = 'manual' } = {}) {
     let addedCount = 0, invalidCount = 0, duplicateCount = 0;
     const incoming = new Set(); // 같은 입력 안에서의 중복도 제거
 
-    words.forEach(rawWord => {
+    entries.forEach(entry => {
+        const rawWord = typeof entry === 'string' ? entry : entry.word;
+        const rawMeaning = typeof entry === 'string' ? '' : (entry.meaning || '');
         const word = String(rawWord).trim().toLowerCase();
         if (!VALID_WORD_PATTERN.test(word)) { invalidCount++; return; }
         if (incoming.has(word) || wordBank.some(item => item.word === word)) { duplicateCount++; return; }
@@ -473,6 +482,7 @@ function addWordsToBank(words, { folderId = DEFAULT_FOLDER.id, source = 'manual'
         wordBank.push({
             id: Date.now() + Math.random(),
             word,
+            meaning: rawMeaning.trim() || ELEMENTARY_WORD_MEANINGS[word] || '',
             addedDate: new Date().toISOString().split('T')[0],
             correctCount: 0,
             incorrectCount: 0,
@@ -494,12 +504,22 @@ function reportAddResult({ addedCount, invalidCount, duplicateCount }, prefix = 
     showToast(msg);
 }
 
+// "apple:사과" 형식으로 단어와 뜻을 함께 입력받는다. ":" 뒤가 없으면 뜻 없이 단어만 등록되고,
+// 이후 addWordsToBank가 프리셋 사전에서 자동으로 뜻을 채워준다.
+function parseWordMeaningInput(input) {
+    return input.split(/[\n,]+/).map(chunk => chunk.trim()).filter(Boolean).map(chunk => {
+        const idx = chunk.indexOf(':');
+        if (idx === -1) return { word: chunk, meaning: '' };
+        return { word: chunk.slice(0, idx).trim(), meaning: chunk.slice(idx + 1).trim() };
+    });
+}
+
 function saveWords() {
     const input = $('word-input').value;
     if (!input.trim()) return showToast('단어를 입력해 주세요.');
 
-    const rawWords = input.split(/[\n,]+/).map(w => w.trim()).filter(w => w.length > 0);
-    const result = addWordsToBank(rawWords, { folderId: $('folder-select').value, source: 'manual' });
+    const entries = parseWordMeaningInput(input);
+    const result = addWordsToBank(entries, { folderId: $('folder-select').value, source: 'manual' });
     renderFolderSelect();
     renderPresetWordPicker();
     reportAddResult(result);
@@ -733,6 +753,23 @@ function deleteWord(id, event) {
     renderPresetWordPicker();
 }
 
+// 프로필에 등록된 단어 전체(모든 폴더 포함)를 한 번에 삭제한다. 폴더 자체는 남고 단어만 비워진다.
+function deleteAllWords() {
+    if (wordBank.length === 0) return showToast('삭제할 단어가 없어요.');
+    if (!confirm(`전체 단어 ${wordBank.length}개를 정말 삭제할까요?\n(이 작업은 되돌릴 수 없습니다)`)) return;
+
+    wordBank = [];
+    saveProfileData();
+    updateWordCount();
+    renderFolderSelect();
+    renderQuizFolderSelect();
+    renderQuizCountSelect();
+    renderStudyFolderChips();
+    renderStudyList();
+    renderPresetWordPicker();
+    showToast('전체 단어가 삭제되었어요.');
+}
+
 // ---------------------------------------------------
 // [누적 테스트 (받아쓰기 퀴즈)]
 // ---------------------------------------------------
@@ -794,6 +831,7 @@ function renderQuiz() {
     container.innerHTML = `
         <button class="audio-btn" id="quiz-audio-btn" aria-label="단어 듣기">🔊</button>
         <div class="hint-text"><span class="hint-label">Hint</span><span id="hint-zone"></span></div>
+        <div class="meaning-text" id="meaning-zone" hidden></div>
         <input type="text" id="quiz-input" class="quiz-input" autocomplete="off" autocapitalize="none" autocorrect="off">
         <button class="btn-main" id="quiz-submit-btn">정답 확인</button>
     `;
@@ -804,6 +842,10 @@ function renderQuiz() {
     $('quiz-submit-btn').addEventListener('click', validateAnswer);
     $('quiz-input').addEventListener('keyup', (e) => { if (e.key === 'Enter') validateAnswer(); });
     $('hint-zone').textContent = generateHintBlank(currentItem.word, 0);
+    if (currentItem.meaning) {
+        $('meaning-zone').textContent = `뜻: ${currentItem.meaning}`;
+        $('meaning-zone').hidden = false;
+    }
 
     progress.innerText = `문제: ${currentQuizIndex + 1} / ${currentQuizList.length}`;
     playTTS(currentItem.word);
@@ -1142,6 +1184,7 @@ function bindStaticEvents() {
     $('btn-preset-all-off').addEventListener('click', () => selectAllPresetWords(false));
     $('btn-preset-add-300').addEventListener('click', addAllPresetWords);
     $('btn-preset-add-selected').addEventListener('click', addSelectedPresetWords);
+    $('btn-delete-all-words').addEventListener('click', deleteAllWords);
 
     // 테스트 범위(학습 탭에서 설정) 변경 시 문제 수 상한을 다시 계산
     $('quiz-folder-select').addEventListener('change', (e) => {
