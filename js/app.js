@@ -316,8 +316,8 @@ function switchTab(tabId) {
     $(`sec-${tabId}`).classList.add('active');
 
     if (tabId === 'manage') { updateWordCount(); renderFolderSelect(); renderPresetWordPicker(); }
-    if (tabId === 'study') { renderStudyFolderChips(); renderQuizCountSelect(); renderStudyList(); }
-    if (tabId === 'test') { renderQuizFolderSelect(); startCumulativeTest(); }
+    if (tabId === 'study') { renderStudyFolderChips(); renderQuizFolderSelect(); renderQuizCountSelect(); renderStudyList(); }
+    if (tabId === 'test') startCumulativeTest();
     if (tabId === 'wrong') renderWrongList();
     if (tabId === 'status') { renderStatus(); renderRanking(); }
     if (tabId === 'cloud') refreshAdminAuthStatus();
@@ -663,7 +663,6 @@ function renderStudyFolderChips() {
         btn.addEventListener('click', () => {
             studyFolderId = id;
             renderStudyFolderChips();
-            renderQuizCountSelect(); // 선택된 폴더의 단어 수에 맞춰 문제 수 상한 갱신
             renderStudyList();
         });
         container.appendChild(btn);
@@ -741,11 +740,11 @@ function quizPool() {
     return quizFolderId === 'all' ? wordBank : wordBank.filter(w => w.folderId === quizFolderId);
 }
 
-// 문제 수 선택 (학습 탭에서 설정): 최소 5개 ~ 학습 탭에서 선택된 폴더(또는 전체)의 단어 수까지 5단위.
-// 선택값은 프로필별로 저장되어 테스트 탭에서 사용된다. 기본값 5개.
+// 문제 수 선택 (학습 탭에서 설정): 최소 5개 ~ 테스트 범위(quizFolderId)로 선택된 폴더(또는 전체)의
+// 단어 수까지 5단위. 선택값은 프로필별로 저장되어 테스트 탭에서 사용된다. 기본값 5개.
 function renderQuizCountSelect() {
     const sel = $('quiz-count-select');
-    const max = (studyFolderId === 'all' ? wordBank : wordBank.filter(w => w.folderId === studyFolderId)).length;
+    const max = quizPool().length;
     sel.innerHTML = '';
     if (max === 0) {
         sel.appendChild(new Option('단어 없음', '0'));
@@ -1144,10 +1143,10 @@ function bindStaticEvents() {
     $('btn-preset-add-300').addEventListener('click', addAllPresetWords);
     $('btn-preset-add-selected').addEventListener('click', addSelectedPresetWords);
 
-    // 테스트 범위 변경 시 새 테스트 시작
+    // 테스트 범위(학습 탭에서 설정) 변경 시 문제 수 상한을 다시 계산
     $('quiz-folder-select').addEventListener('change', (e) => {
         quizFolderId = e.target.value;
-        startCumulativeTest();
+        renderQuizCountSelect();
     });
     // 문제 수는 학습 탭에서 설정 → 프로필별로 저장되어 테스트 탭에서 사용
     $('quiz-count-select').addEventListener('change', (e) => {

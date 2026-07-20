@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#4f46e5">
     <title>초등 영단어 마스터</title>
     <!-- ?v= 값은 배포마다 올려서 모바일 브라우저가 이전 캐시 대신 새 파일을 받도록 한다 -->
-    <link rel="stylesheet" href="css/style.css?v=11">
+    <link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body data-tier="1">
 
@@ -95,8 +95,12 @@
             </div>
         </div>
 
-        <!-- 2. 사전 학습 (테스트 문제 수 설정 포함) -->
+        <!-- 2. 사전 학습 (테스트 범위/문제 수 설정 포함) -->
         <div id="sec-study" class="section">
+            <div class="folder-row">
+                <label class="form-label" style="margin:0; flex-shrink:0;">테스트 범위</label>
+                <select id="quiz-folder-select"></select>
+            </div>
             <div class="folder-row">
                 <label class="form-label" style="margin:0; flex-shrink:0;">테스트 문제 수</label>
                 <select id="quiz-count-select"></select>
@@ -107,10 +111,6 @@
 
         <!-- 3. 누적 테스트 -->
         <div id="sec-test" class="section">
-            <div class="folder-row">
-                <label class="form-label" style="margin:0; flex-shrink:0;">테스트 범위</label>
-                <select id="quiz-folder-select"></select>
-            </div>
             <div id="quiz-container" class="quiz-box"></div>
             <div id="quiz-progress" class="quiz-progress"></div>
         </div>
@@ -208,13 +208,13 @@
 <div id="toast-zone" class="toast-zone"></div>
 
 <!-- 초등 필수 단어 300개 데이터 (별도 파일로 관리, 이 파일만 수정하면 됨) -->
-<script src="js/data/elementary-words.js?v=11"></script>
-<script src="js/storage.js?v=11"></script>
-<script src="js/profiles.js?v=11"></script>
+<script src="js/data/elementary-words.js?v=12"></script>
+<script src="js/storage.js?v=12"></script>
+<script src="js/profiles.js?v=12"></script>
 <!-- Firebase: 로그인 관리/마스터 단어 DB/사용이력/랭킹. 로드 실패해도 위 로컬 기능은 그대로 동작한다 -->
-<script type="module" src="js/firebase-init.js?v=11"></script>
-<script src="js/cloud.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
+<script type="module" src="js/firebase-init.js?v=12"></script>
+<script src="js/cloud.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 
 </body>
 </html>
