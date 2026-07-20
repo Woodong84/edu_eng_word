@@ -279,8 +279,8 @@ function switchTab(tabId) {
     $(`sec-${tabId}`).classList.add('active');
 
     if (tabId === 'manage') { updateWordCount(); renderFolderSelect(); renderPresetWordPicker(); }
-    if (tabId === 'study') { renderStudyFolderChips(); renderStudyList(); }
-    if (tabId === 'test') { renderQuizFolderSelect(); renderQuizCountSelect(); startCumulativeTest(); }
+    if (tabId === 'study') { renderStudyFolderChips(); renderQuizCountSelect(); renderStudyList(); }
+    if (tabId === 'test') { renderQuizFolderSelect(); startCumulativeTest(); }
     if (tabId === 'wrong') renderWrongList();
     if (tabId === 'status') renderStatus();
 }
@@ -624,6 +624,7 @@ function renderStudyFolderChips() {
         btn.addEventListener('click', () => {
             studyFolderId = id;
             renderStudyFolderChips();
+            renderQuizCountSelect(); // 선택된 폴더의 단어 수에 맞춰 문제 수 상한 갱신
             renderStudyList();
         });
         container.appendChild(btn);
@@ -701,10 +702,11 @@ function quizPool() {
     return quizFolderId === 'all' ? wordBank : wordBank.filter(w => w.folderId === quizFolderId);
 }
 
-// 문제 수 선택 옵션: 최소 5개 ~ 선택된 범위(폴더/전체)의 단어 수까지 5단위 + '전체'
+// 문제 수 선택 (학습 탭에서 설정): 최소 5개 ~ 학습 탭에서 선택된 폴더(또는 전체)의 단어 수까지 5단위.
+// 선택값은 프로필별로 저장되어 테스트 탭에서 사용된다. 기본값 5개.
 function renderQuizCountSelect() {
     const sel = $('quiz-count-select');
-    const max = quizPool().length;
+    const max = (studyFolderId === 'all' ? wordBank : wordBank.filter(w => w.folderId === studyFolderId)).length;
     sel.innerHTML = '';
     if (max === 0) {
         sel.appendChild(new Option('단어 없음', '0'));
@@ -717,8 +719,8 @@ function renderQuizCountSelect() {
     counts.push(max);
     counts.forEach(n => sel.appendChild(new Option(n === max ? `전체 ${n}개` : `${n}개`, String(n))));
 
-    // 프로필별로 저장된 선호 문제 수를 범위 안에서 가장 가까운 옵션으로 적용
-    const saved = userStats.quizCount || 20;
+    // 프로필별로 저장된 선호 문제 수(기본 5개)를 범위 안에서 가장 가까운 옵션으로 적용
+    const saved = userStats.quizCount || 5;
     const pick = counts.reduce((best, n) => Math.abs(n - saved) < Math.abs(best - saved) ? n : best, counts[0]);
     sel.value = String(pick);
 }
@@ -730,8 +732,8 @@ function startCumulativeTest() {
         $('quiz-progress').innerText = '';
         return;
     }
-    const count = parseInt($('quiz-count-select').value, 10) || Math.min(20, pool.length);
-    // 선택한 문제 수만큼 범위 내에서 랜덤 출제
+    // 학습 탭에서 설정한 문제 수(기본 5개)만큼 범위 내에서 랜덤 출제
+    const count = Math.min(userStats.quizCount || 5, pool.length);
     currentQuizList = [...pool].sort(() => Math.random() - 0.5).slice(0, count);
     currentQuizIndex = 0;
     renderQuiz();
@@ -753,7 +755,7 @@ function renderQuiz() {
 
     container.innerHTML = `
         <button class="audio-btn" id="quiz-audio-btn" aria-label="단어 듣기">🔊</button>
-        <div class="hint-text" id="hint-zone"></div>
+        <div class="hint-text"><span class="hint-label">Hint</span><span id="hint-zone"></span></div>
         <input type="text" id="quiz-input" class="quiz-input" autocomplete="off" autocapitalize="none" autocorrect="off">
         <button class="btn-main" id="quiz-submit-btn">정답 확인</button>
     `;
@@ -965,16 +967,16 @@ function bindStaticEvents() {
     $('btn-preset-add-300').addEventListener('click', addAllPresetWords);
     $('btn-preset-add-selected').addEventListener('click', addSelectedPresetWords);
 
-    // 테스트 범위/문제 수 변경 시 새 테스트 시작
+    // 테스트 범위 변경 시 새 테스트 시작
     $('quiz-folder-select').addEventListener('change', (e) => {
         quizFolderId = e.target.value;
-        renderQuizCountSelect(); // 범위가 바뀌면 문제 수 상한도 다시 계산
         startCumulativeTest();
     });
+    // 문제 수는 학습 탭에서 설정 → 프로필별로 저장되어 테스트 탭에서 사용
     $('quiz-count-select').addEventListener('change', (e) => {
-        userStats.quizCount = parseInt(e.target.value, 10); // 프로필별 선호 문제 수 저장
+        userStats.quizCount = parseInt(e.target.value, 10);
         saveProfileData();
-        startCumulativeTest();
+        showToast(`테스트 문제 수가 ${e.target.value}개로 설정되었어요.`);
     });
 
     // 클라우드 설정
