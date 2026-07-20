@@ -1,7 +1,9 @@
 // app.js
 // 화면 로직 (프로필 선택 → 학습 앱)
 // - 저장은 AppStorage(storage.js), 계정은 Profiles(profiles.js)를 통해서만 접근한다.
-// - 클라우드 DB 도입 시 이 파일은 그대로 두고 storage.js의 어댑터만 교체하면 된다.
+// - 로그인 관리/마스터 단어 DB/사용이력/랭킹은 Cloud(cloud.js, Firebase)를 통해 접근한다.
+//   개인 단어장/폴더는 여전히 로컬(localStorage)에만 저장되며, 프로필·통계만 클라우드에
+//   best-effort로 미러링된다(오프라인이어도 로컬 기능은 그대로 동작).
 
 const $ = (id) => document.getElementById(id);
 
@@ -24,6 +26,7 @@ let selectedIcon = null;        // 프로필 생성 폼에서 고른 아이콘
 const stickerTypes = ['⭐', '🌟', '🏆', '👑', '🚀', '🔥', '🍎', '🦖', '🦄', '💎', '🏅', '🍕', '🎉', '🍀'];
 const ADMIN_PROFILE_NAMES = ['마스터', '멋쟁이아빠']; // ⚙️ 설정 메뉴/전체 프로필 조회가 가능한 관리자용 프로필 이름
 let statusFilter = null; // 상태 탭에서 선택한 목록 ('tested' | 'wrong' | null)
+let rankingPeriod = 'weekly'; // 상태 탭 랭킹 보기 ('weekly' | 'monthly')
 let profileScreenViewer = null; // 프로필 화면을 연 주체 (null=최초 접속 → 전체 표시, 그 외에는 권한별로 목록 제한)
 let profileSearchResult = null; // 이름 검색으로 찾은 프로필 (범위 제한과 무관하게 이동 가능하도록 함)
 const VALID_WORD_PATTERN = /^[a-z]+(-[a-z]+)*$/; // 영어 알파벳 + 하이픈 복합어만 허용 (수동입력/GitHub/프리셋 동일 검증)
@@ -58,6 +61,37 @@ function saveProfileData() {
     AppStorage.set(profileKey('words'), wordBank);
     AppStorage.set(profileKey('stats'), userStats);
     AppStorage.set(profileKey('folders'), folders);
+}
+
+// ---------------------------------------------------
+// [클라우드 동기화] 프로필/통계를 Firestore에 best-effort로 반영한다.
+// 실패해도(오프라인, Firebase 콘솔 설정 전 등) 로컬 저장·앱 동작에는 영향이 없다.
+// ---------------------------------------------------
+function syncCloudProfile() {
+    const profile = Profiles.active();
+    if (!profile) return;
+    const role = ADMIN_PROFILE_NAMES.includes(profile.name) ? 'admin' : 'member';
+    Cloud.syncProfile(profile, userStats, role);
+}
+
+function currentWeekStart(date = new Date()) {
+    const d = new Date(date);
+    const day = (d.getDay() + 6) % 7; // 월요일=0 ... 일요일=6 로 변환
+    d.setDate(d.getDate() - day);
+    return d.toISOString().split('T')[0];
+}
+
+function currentMonthKey(date = new Date()) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// 이번 주/이번 달이 지난 값과 다르면 랭킹 집계 카운터(weeklyCorrect/monthlyCorrect)를 리셋한다.
+// 서버 스케줄러 없이 클라이언트가 매번 "지금이 몇 주차/몇 월인지" 확인해서 처리하는 방식(lazy reset).
+function rolloverStatsBucketsIfNeeded() {
+    const week = currentWeekStart();
+    const month = currentMonthKey();
+    if (userStats.weekStartDate !== week) { userStats.weekStartDate = week; userStats.weeklyCorrect = 0; }
+    if (userStats.monthKey !== month) { userStats.monthKey = month; userStats.monthlyCorrect = 0; }
 }
 
 // ---------------------------------------------------
@@ -241,6 +275,7 @@ function createProfileFromForm() {
 // ---------------------------------------------------
 function enterApp() {
     loadProfileData();
+    rolloverStatsBucketsIfNeeded(); // 주/월이 바뀌었으면 랭킹 집계 리셋
     $('profile-screen').hidden = true;
     $('app-root').hidden = false;
 
@@ -252,6 +287,7 @@ function enterApp() {
     studyFolderId = 'all';
     quizFolderId = 'all';
     statusFilter = null;
+    rankingPeriod = 'weekly';
     presetSelected.clear();
 
     applyLevelTheme();
@@ -264,6 +300,7 @@ function enterApp() {
     $('gh-raw-url').value = githubConfig.rawUrl;
     $('gh-token').value = githubConfig.token;
     switchTab('manage');
+    syncCloudProfile(); // 프로필 진입 시 최신 통계를 클라우드에 반영
 }
 
 function isAdminProfile() {
@@ -282,7 +319,8 @@ function switchTab(tabId) {
     if (tabId === 'study') { renderStudyFolderChips(); renderQuizCountSelect(); renderStudyList(); }
     if (tabId === 'test') { renderQuizFolderSelect(); startCumulativeTest(); }
     if (tabId === 'wrong') renderWrongList();
-    if (tabId === 'status') renderStatus();
+    if (tabId === 'status') { renderStatus(); renderRanking(); }
+    if (tabId === 'cloud') refreshAdminAuthStatus();
 }
 
 // ---------------------------------------------------
@@ -312,6 +350,7 @@ function gainExp(amount) {
     }
     saveProfileData();
     renderRewards();
+    syncCloudProfile();
     if (leveledUp) {
         applyLevelTheme();
         playLevelUpEffect(userStats.level, lastSticker);
@@ -808,13 +847,24 @@ function validateAnswer() {
     const masterItem = wordBank.find(item => item.id === currentItem.id);
 
     if (userAnswer === currentItem.word) {
+        rolloverStatsBucketsIfNeeded();
+        userStats.totalCorrect = (userStats.totalCorrect || 0) + 1;
+        userStats.weeklyCorrect = (userStats.weeklyCorrect || 0) + 1;
+        userStats.monthlyCorrect = (userStats.monthlyCorrect || 0) + 1;
+        Cloud.logHistory(Profiles.activeId(), { word: currentItem.word, result: 'correct', usedHint: quizIncorrectCount > 0, folderId: currentItem.folderId });
+
         if (quizIncorrectCount === 0) { masterItem.correctCount++; showToast('🎯 완벽해요! +10 EXP'); gainExp(10); }
-        else { showToast('🎯 정답입니다! (힌트 사용)'); }
+        else { showToast('🎯 정답입니다! (힌트 사용)'); saveProfileData(); syncCloudProfile(); }
         currentQuizIndex++;
         renderQuiz();
     } else {
         quizIncorrectCount++;
         masterItem.incorrectCount++;
+        userStats.totalWrong = (userStats.totalWrong || 0) + 1;
+        saveProfileData();
+        syncCloudProfile();
+        Cloud.logHistory(Profiles.activeId(), { word: currentItem.word, result: 'wrong', usedHint: false, folderId: currentItem.folderId });
+
         showToast('❌ 다시 한 번 들어보세요!');
         inputEl.value = '';
         inputEl.focus();
@@ -908,6 +958,114 @@ function renderStatus() {
 }
 
 // ---------------------------------------------------
+// [랭킹] Firestore에서 이번 주/이번 달 정답 수 기준 상위 목록을 가져와 표시한다.
+// role이 'admin'인 프로필은 제외된다 (Cloud.fetchRanking에서 필터링).
+// ---------------------------------------------------
+async function renderRanking() {
+    const container = $('ranking-list');
+    container.innerHTML = '<p class="ranking-empty">불러오는 중...</p>';
+
+    const statField = rankingPeriod === 'weekly' ? 'weeklyCorrect' : 'monthlyCorrect';
+    const myId = Profiles.activeId();
+
+    try {
+        // Firebase 설정이 안 되어 있거나 오프라인이어도 화면이 무한정 "불러오는 중"에 멈추지 않도록 타임아웃
+        const rows = await Promise.race([
+            Cloud.fetchRanking(statField, 20),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]);
+
+        container.innerHTML = '';
+        if (rows.length === 0) {
+            container.innerHTML = '<p class="ranking-empty">아직 랭킹 데이터가 없어요. 테스트를 풀면 집계돼요!</p>';
+            return;
+        }
+
+        rows.forEach((row, i) => {
+            const rank = i + 1;
+            const div = document.createElement('div');
+            div.className = 'ranking-row' + (row.id === myId ? ' me' : '');
+
+            const rankEl = document.createElement('span');
+            rankEl.className = 'ranking-rank' + (rank <= 3 ? ` top${rank}` : '');
+            rankEl.textContent = rank <= 3 ? ['🥇', '🥈', '🥉'][rank - 1] : String(rank);
+
+            const iconEl = document.createElement('span');
+            iconEl.className = 'ranking-icon';
+            iconEl.textContent = row.icon || '🙂';
+
+            const nameEl = document.createElement('span');
+            nameEl.className = 'ranking-name';
+            nameEl.textContent = row.name;
+
+            const scoreEl = document.createElement('span');
+            scoreEl.className = 'ranking-score';
+            scoreEl.textContent = `정답 ${(row.stats && row.stats[statField]) || 0}개`;
+
+            div.appendChild(rankEl);
+            div.appendChild(iconEl);
+            div.appendChild(nameEl);
+            div.appendChild(scoreEl);
+            container.appendChild(div);
+        });
+    } catch (e) {
+        container.innerHTML = '<p class="ranking-empty">랭킹을 불러오지 못했어요.<br>(네트워크 또는 Firebase 설정을 확인해 주세요)</p>';
+    }
+}
+
+// ---------------------------------------------------
+// [Firebase 관리자 로그인 / 마스터 단어 시드]
+// 앱 화면상의 관리자 프로필(마스터/멋쟁이아빠) 여부와는 별개로, masterWords 쓰기는
+// 이메일/비밀번호로 로그인한 Firebase 계정이 있어야 가능하다 (firestore.rules 참고).
+// ---------------------------------------------------
+async function refreshAdminAuthStatus() {
+    $('admin-auth-status').textContent = '현재 상태: 확인 중...';
+    try {
+        await Promise.race([
+            Cloud.ensureAuth(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]);
+        $('admin-auth-status').textContent = Cloud.isAdminAuthed()
+            ? '현재 상태: 관리자로 로그인됨 (마스터 단어 등록 가능)'
+            : '현재 상태: 미로그인 (마스터 단어는 읽기만 가능)';
+    } catch (e) {
+        $('admin-auth-status').textContent = '현재 상태: Firebase에 연결하지 못했어요 (네트워크를 확인해 주세요)';
+    }
+}
+
+async function handleAdminLogin() {
+    const email = $('admin-email').value.trim();
+    const password = $('admin-password').value;
+    if (!email || !password) return showToast('이메일과 비밀번호를 입력해 주세요.');
+    try {
+        await Cloud.adminSignIn(email, password);
+        $('admin-password').value = '';
+        showToast('관리자로 로그인되었어요.');
+        refreshAdminAuthStatus();
+    } catch (e) {
+        showToast('로그인에 실패했어요. 이메일/비밀번호를 확인해 주세요.');
+    }
+}
+
+async function handleAdminLogout() {
+    await Cloud.adminSignOut();
+    showToast('로그아웃되었어요.');
+    refreshAdminAuthStatus();
+}
+
+async function handleSeedMasterWords() {
+    if (!Cloud.isAdminAuthed()) return showToast('먼저 관리자로 로그인해 주세요.');
+    if (!confirm('초등 필수 단어 300개를 마스터 DB에 등록할까요?\n(이미 등록된 단어는 유지되고 새 단어만 추가됩니다)')) return;
+    try {
+        showToast('등록 중이에요...');
+        const count = await Cloud.seedMasterWordsFromPreset(ELEMENTARY_WORD_CATEGORIES);
+        showToast(`✅ 마스터 단어 ${count}개 등록 완료!`);
+    } catch (e) {
+        showToast(`등록 실패: ${e.message}`);
+    }
+}
+
+// ---------------------------------------------------
 // [초기화]
 // ---------------------------------------------------
 function migrateLegacyGithubConfig() {
@@ -930,6 +1088,25 @@ function bindStaticEvents() {
     $('btn-open-settings').addEventListener('click', () => switchTab('cloud'));
     $('status-tested-card').addEventListener('click', () => { statusFilter = statusFilter === 'tested' ? null : 'tested'; renderStatus(); });
     $('status-wrong-card').addEventListener('click', () => { statusFilter = statusFilter === 'wrong' ? null : 'wrong'; renderStatus(); });
+
+    // 랭킹 주간/월간 토글
+    $('rank-tab-weekly').addEventListener('click', () => {
+        rankingPeriod = 'weekly';
+        $('rank-tab-weekly').classList.add('active');
+        $('rank-tab-monthly').classList.remove('active');
+        renderRanking();
+    });
+    $('rank-tab-monthly').addEventListener('click', () => {
+        rankingPeriod = 'monthly';
+        $('rank-tab-monthly').classList.add('active');
+        $('rank-tab-weekly').classList.remove('active');
+        renderRanking();
+    });
+
+    // Firebase 관리자 로그인 / 마스터 단어 시드
+    $('btn-admin-login').addEventListener('click', handleAdminLogin);
+    $('btn-admin-logout').addEventListener('click', handleAdminLogout);
+    $('btn-seed-master').addEventListener('click', handleSeedMasterWords);
 
     // 프로필 검색 (검색어를 지우면 원래 범위 목록으로 복귀)
     $('btn-profile-search').addEventListener('click', searchProfileByName);
@@ -1020,6 +1197,7 @@ function init() {
     githubConfig = AppStorage.get('cloudConfig', { rawUrl: '', token: '' });
     bindStaticEvents();
     warnIfTtsUnavailable();
+    Cloud.ensureAuth(); // 앱 시작과 동시에 백그라운드로 익명 로그인 시도 (실패해도 로컬 기능엔 영향 없음)
 
     if (Profiles.active()) enterApp();
     else showProfileScreen();

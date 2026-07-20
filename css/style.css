@@ -55,6 +55,21 @@ button { touch-action: manipulation; }
 .status-value { font-size: 22px; font-weight: bold; color: var(--primary); }
 .status-label { font-size: 12px; color: #64748b; margin-top: 4px; font-weight: bold; }
 
+/* ==================== 랭킹 ==================== */
+.ranking-zone { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+.ranking-zone h4 { margin-bottom: 10px; }
+.ranking-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.ranking-row { display: flex; align-items: center; gap: 10px; background: var(--card); border: 2px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; }
+.ranking-row.me { border-color: var(--primary); background: var(--accent-soft); }
+.ranking-rank { font-weight: bold; font-size: 15px; color: #64748b; width: 24px; text-align: center; flex-shrink: 0; }
+.ranking-rank.top1 { color: #d97706; }
+.ranking-rank.top2 { color: #64748b; }
+.ranking-rank.top3 { color: #b45309; }
+.ranking-icon { font-size: 22px; flex-shrink: 0; }
+.ranking-name { flex: 1; font-weight: bold; font-size: 14px; }
+.ranking-score { font-weight: bold; color: var(--primary); font-size: 14px; }
+.ranking-empty { text-align: center; color: #94a3b8; font-size: 13px; padding: 10px 0; }
+
 /* ==================== 프로필 선택 화면 ==================== */
 .profile-screen { max-width: 600px; margin: 0 auto; padding: 40px 20px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 16px; min-height: 100vh; }
 .app-title { text-align: center; font-size: 26px; color: var(--primary); }

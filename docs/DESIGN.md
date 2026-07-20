@@ -1,6 +1,6 @@
 # 설계서 — 영단어 마스터 (edu_eng_word)
 
-빌드 도구 없이 브라우저에서 바로 실행되는 정적 웹앱입니다. 서버/DB가 없고 모든 데이터는 브라우저 `localStorage`에 저장됩니다. 모바일(카카오톡 링크로 공유) 사용을 최우선으로 설계했습니다.
+빌드 도구 없이 브라우저에서 바로 실행되는 정적 웹앱입니다. 개인 단어장 등 핵심 데이터는 여전히 브라우저 `localStorage`에 저장되고, 로그인 관리/마스터 단어 DB/사용이력/랭킹은 Firebase(Firestore)로 별도 연동되어 있습니다(§8). 모바일(카카오톡 링크로 공유) 사용을 최우선으로 설계했습니다.
 
 관련 문서: 요청/변경 이력은 [`PROMPT_HISTORY.md`](./PROMPT_HISTORY.md) 참고.
 
@@ -10,13 +10,14 @@
 
 | 항목 | 내용 |
 |---|---|
-| 런타임 | 순수 HTML/CSS/JS (프레임워크·빌드 없음) |
-| 저장 | 브라우저 `localStorage` |
+| 런타임 | 순수 HTML/CSS/JS (프레임워크·빌드 없음, Firebase만 CDN ESM으로 로드) |
+| 로컬 저장 | 브라우저 `localStorage` (개인 단어장/폴더) |
+| 클라우드 | Firebase Authentication + Firestore (프로필/통계/마스터 단어/이력/랭킹, §8) |
 | 음성 | Web Speech API (`speechSynthesis`) |
 | 배포 | GitHub Pages (`main` 브랜치 `/(root)`), 접속 URL: `https://woodong84.github.io/edu_eng_word/` |
-| 캐시 무효화 | `index.html`에서 css/js 참조에 `?v=N` 쿼리 부여, 배포 시 N을 올림 (현재 `v=10`) |
+| 캐시 무효화 | `index.html`에서 css/js 참조에 `?v=N` 쿼리 부여, 배포 시 N을 올림 (현재 `v=11`) |
 
-정적 자원이라 서버 로직이 없고, `index.html`을 열면 바로 동작합니다. 배포는 GitHub Pages가 `main` 브랜치 push를 감지해 자동 빌드합니다.
+정적 자원이라 서버 로직이 없고, `index.html`을 열면 바로 동작합니다. 배포는 GitHub Pages가 `main` 브랜치 push를 감지해 자동 빌드합니다. Firestore 보안 규칙(`firestore.rules`)은 Firebase 콘솔에서 별도로 게시해야 합니다(§8.1).
 
 ---
 
@@ -25,11 +26,14 @@
 ```
 .
 ├── index.html              # 마크업: 프로필 화면 + 앱 본체(6개 섹션) + 오버레이/토스트
+├── firestore.rules         # Firestore 보안 규칙 소스 (콘솔에 수동 게시, §8.1)
 ├── css/
 │   └── style.css           # 모바일 우선 스타일, 레벨 구간별 테마(body[data-tier])
 ├── js/
 │   ├── storage.js          # 저장소 추상화 계층 (Adapter 패턴)
 │   ├── profiles.js         # 로컬 프로필(계정) 관리
+│   ├── firebase-init.js    # Firebase SDK 초기화 (type="module", CDN ESM)
+│   ├── cloud.js             # Cloud.* API — 로그인/마스터 DB/이력/랭킹 연동 (§8)
 │   ├── app.js               # 화면 로직 전체 (단어/학습/테스트/오답/상태/설정)
 │   └── data/
 │       └── elementary-words.js  # 초등 필수 단어 300개 프리셋 (18개 카테고리)
@@ -224,27 +228,56 @@ const LEVEL_TIERS = [
 
 ---
 
-## 8. 향후 클라우드 DB 전환 가이드
+## 8. Firebase 연동 — 로그인 관리 / 마스터 단어 DB / 사용이력 / 랭킹
 
-`js/app.js`와 `js/profiles.js`는 `localStorage`를 직접 호출하지 않고 `AppStorage`(`js/storage.js`)의 `get/set/remove/keys` 인터페이스만 사용합니다. 클라우드 DB(Firebase, Supabase 등)를 도입할 때:
+기존 `AppStorage` 어댑터 교체 방식(§8 이전 버전 설계) 대신, 실제 구현은 **로컬 우선 + 클라우드 best-effort 미러링** 방식으로 진행했습니다. 개인 단어장(`words`)과 폴더(`folders`)는 계속 `localStorage`에만 저장되고(§3 그대로), **프로필/통계, 마스터 단어 데이터, 사용 이력, 랭킹만 Firestore로 별도 연동**됩니다. 이렇게 나눈 이유는 기존 `app.js`의 수백 곳에 걸친 동기 호출부를 전부 비동기로 바꾸지 않고도, "로그인 관리·마스터 데이터·사용이력·랭킹"이라는 실제 요구사항만 충족하기 위함입니다.
 
-1. 동일한 인터페이스(`get/set/remove/keys`)를 구현한 원격 어댑터를 작성
-2. `AppStorage.setAdapter(cloudAdapter)`로 교체 — 앱 로직은 수정 불필요
-3. 권장 전략: 로컬 캐시에 즉시 반영 후 백그라운드로 원격 동기화 (오프라인 대응, 현재 구조와 UX 단절 최소화)
+### 8.1 구성 파일
 
-이 시점에 추가로 가능해지는 것:
+| 파일 | 역할 |
+|---|---|
+| `js/firebase-init.js` (`type="module"`) | gstatic CDN에서 Firebase SDK(v12)를 ESM으로 불러와 초기화하고 `window.FirebaseSDK`에 노출. 완료되면 `firebase-ready` 이벤트 발행 |
+| `js/cloud.js` (일반 스크립트) | `Cloud.*` API 제공. `window.FirebaseSDK`가 아직 없으면(모듈이 늦게 로드됨) `firebase-ready` 이벤트를 기다렸다가 동작하는 지연 초기화 패턴 사용 |
+| `firestore.rules` | Firestore 보안 규칙 소스. **저장소에 커밋해도 자동 배포되지 않으며**, Firebase 콘솔의 Firestore → 규칙 탭에 수동으로 붙여넣고 게시해야 함 |
 
-- **진짜 로그인(비밀번호/OTP 등) 인증** — 현재는 이름만으로 구분되는 로컬 프로필
-- **마스터 계정이 다른 기기의 하위 계정 데이터를 열람/관리** — 현재는 물리적으로 불가능(각자 데이터가 각자 브라우저에만 존재)
-- **기기 간 동기화** — 현재는 같은 브라우저·기기 안에서만 프로필이 유효
+### 8.2 인증 모델
 
-`WordItem.source` 필드(`manual`/`preset`/`master`)는 이미 동기화 시 출처별 처리를 염두에 두고 넣어둔 필드이며, 프로필 데이터가 `p:<id>:*` 키로 이미 분리되어 있어 사용자 테이블로 자연스럽게 매핑 가능합니다.
+가족 단위 개인 프로젝트라는 전제 위에, 프로필 간 소유권을 엄격히 나누지 않고 두 단계로만 구분합니다.
+
+- **익명 로그인**: 앱 로드 시 자동으로 실행(`Cloud.ensureAuth()`), 별도 계정 없이 누구나(자녀 프로필 포함) 자신의 프로필·이력을 읽고 쓸 수 있음. 기존 "비밀번호 없는 프로필 전환" UX를 그대로 유지하기 위한 장치
+- **관리자(이메일/비밀번호) 로그인**: ⚙️ 설정 화면 하단의 "Firebase 마스터 단어 관리" 블록에서 로그인. `masterWords` 컬렉션 쓰기는 이 계정으로만 가능(`firestore.rules`가 `request.auth.token.email != null` 조건으로 검사). **앱 화면의 관리자 프로필(마스터/멋쟁이아빠) 여부와는 독립적인 개념**입니다 — 로컬 프로필 이름은 UI 노출만 제어하고, 실제 쓰기 권한은 이 Firebase 계정이 결정합니다
+
+### 8.3 데이터 흐름
+
+- `profiles/{profileId}` 문서는 `syncCloudProfile()`이 프로필 진입 시·정답/오답 처리 시·레벨업 시 `{name, icon, parentId, role, stats}`를 덮어씁니다(merge). `role`은 로컬 `ADMIN_PROFILE_NAMES` 판정 결과를 그대로 전달
+- `profiles/{profileId}/history/{id}`에는 문제를 풀 때마다(`validateAnswer()`) `{word, result, usedHint, folderId, testedAt}`가 한 건씩 쌓입니다 — 삭제 로직 없이 영구 보관(사용자 결정)
+- 랭킹은 `stats.weeklyCorrect` / `stats.monthlyCorrect`를 기준으로 Firestore `orderBy` 쿼리(`Cloud.fetchRanking`)로 조회하며, 관리자 role은 결과에서 제외
+- 주간/월간 리셋은 서버 스케줄러 없이 **클라이언트가 매번 "지금이 몇 주차/몇 월인지" 계산해 저장된 값과 비교하는 lazy reset** 방식입니다(`rolloverStatsBucketsIfNeeded()`). 월 경계에 걸친 주(예: 7월 마지막 주 → 8월 첫 주)에도 주/월 두 기준을 독립적으로 검사하므로 각각 올바르게 리셋됩니다
+- `masterWords/{word}`는 **단어 문자열 자체를 문서 ID로 사용**해 중복 등록을 원천적으로 방지합니다. 관리자 로그인 상태에서 "초등 필수 단어 300개를 마스터 DB에 등록" 버튼(`Cloud.seedMasterWordsFromPreset`)으로 `elementary-words.js`의 데이터를 1회성 시드로 넣을 수 있습니다(batch write, 여러 번 눌러도 안전)
+
+### 8.4 실패 내성(resilience)
+
+Cloud 관련 호출은 전부 실패해도 로컬 기능에 영향이 없도록 설계했습니다.
+
+- `syncCloudProfile()` / `Cloud.logHistory()`는 결과를 기다리지 않는 fire-and-forget 호출이며, 내부적으로 실패를 삼키고 `console.warn`만 남김
+- 사용자가 직접 결과를 봐야 하는 화면(랭킹 목록, 관리자 로그인 상태 표시)은 5초 타임아웃을 두어, Firebase 콘솔 설정이 덜 되었거나 네트워크가 없어도 "불러오는 중..."에 무한정 멈추지 않고 안내 문구로 전환됨
+- Firebase SDK 로드 자체가 실패해도(CDN 차단 등) 프로필 생성/단어 학습/테스트 등 기존 로컬 기능은 100% 그대로 동작 (헤드리스 브라우저로 CDN을 완전히 차단한 상태에서 전체 플로우 검증 완료)
 
 ---
 
-## 9. 알려진 제약
+## 9. 향후 확장 아이디어
 
-- 프로필은 기기(브라우저) 단위로만 유효 — 다른 기기·브라우저와 동기화되지 않음
+- 개인 단어장(`words`/`folders`)도 클라우드로 옮기면 기기 간 완전 동기화가 가능해집니다. 이 경우 `app.js` 곳곳의 동기 호출부를 비동기로 바꿔야 하므로 별도 작업으로 분리하는 것을 권장합니다
+- `masterWords`에 개별 단어 추가/삭제 UI(현재는 300개 일괄 시드만 지원)
+- `history` 서브컬렉션을 활용한 "이번 주 학습 그래프" 등 시각화
+
+---
+
+## 10. 알려진 제약
+
+- 개인 단어장/폴더는 여전히 기기(브라우저) 단위로만 유효 — 다른 기기·브라우저와 동기화되지 않음 (프로필/통계/마스터 데이터/이력/랭킹만 클라우드로 동기화됨)
 - 로그인에 비밀번호가 없어 보안 목적이 아닌 "학습자 구분" 용도. 관리자 프로필 이름(`마스터`/`멋쟁이아빠`)이 노출되면 검색으로 접근 가능
+- Firestore 보안 규칙은 "가족 전체를 하나의 신뢰 그룹"으로 취급합니다 — 프로필 간 소유권을 엄격히 분리하지 않으므로 불특정 다수 대상 서비스에는 적합하지 않음
+- `firestore.rules` 파일은 저장소에 있지만 자동 배포되지 않음 — 변경 시 Firebase 콘솔에서 수동으로 게시해야 함
 - iOS는 카카오톡 스킴 외의 다른 인앱 브라우저(인스타/페북 등)에서 외부 브라우저로 자동 탈출이 불가능 (iOS 자체 제약, 안내 토스트로 대체)
 - 인앱 브라우저 감지는 User-Agent 문자열 기반이라, 특정 앱이 UA를 변경하면 감지가 어긋날 수 있음

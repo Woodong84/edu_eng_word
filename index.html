@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#4f46e5">
     <title>초등 영단어 마스터</title>
     <!-- ?v= 값은 배포마다 올려서 모바일 브라우저가 이전 캐시 대신 새 파일을 받도록 한다 -->
-    <link rel="stylesheet" href="css/style.css?v=10">
+    <link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body data-tier="1">
 
@@ -138,6 +138,15 @@
             </div>
             <p class="desc-text" id="status-hint" style="text-align:center;">건수를 선택하면 단어 목록이 표시됩니다.</p>
             <div id="status-list" class="word-grid"></div>
+
+            <div class="ranking-zone">
+                <h4>🏆 랭킹</h4>
+                <div class="folder-chips">
+                    <button class="folder-chip active" id="rank-tab-weekly">이번 주</button>
+                    <button class="folder-chip" id="rank-tab-monthly">이번 달</button>
+                </div>
+                <div id="ranking-list" class="ranking-list"></div>
+            </div>
         </div>
 
         <!-- 6. 마스터 단어장 설정 (관리자 프로필 전용, 상단 ⚙️ 버튼으로 진입) -->
@@ -158,6 +167,21 @@
                 </div>
             </div>
             <p class="desc-text small">※ 단어 등록/수정은 GitHub 웹사이트나 앱에서 이 파일을 직접 편집(Commit)해서 관리하세요. 이 화면은 그 내용을 "불러오기"만 하며, 불러온 단어는 [☁️ 마스터] 폴더에 저장됩니다. 이미 있는 단어는 중복 확인 후 자동으로 건너뜁니다.</p>
+
+            <h3 style="margin-top:25px;">☁️ Firebase 마스터 단어 관리</h3>
+            <p class="desc-text">Firestore에 저장되는 마스터 단어 데이터베이스입니다. 관리자 계정으로 로그인해야 등록할 수 있습니다.</p>
+            <div class="cloud-form">
+                <label>관리자 이메일</label>
+                <input type="text" id="admin-email" placeholder="관리자 계정 이메일" autocomplete="off">
+                <label>비밀번호</label>
+                <input type="password" id="admin-password" placeholder="비밀번호">
+                <div class="btn-row">
+                    <button class="btn-sync btn-dark" id="btn-admin-login">로그인</button>
+                    <button class="btn-sync btn-gray" id="btn-admin-logout">로그아웃</button>
+                </div>
+                <p class="desc-text small" id="admin-auth-status">현재 상태: 확인 중...</p>
+                <button class="btn-main" id="btn-seed-master">📚 초등 필수 단어 300개를 마스터 DB에 등록</button>
+            </div>
         </div>
     </div>
 
@@ -184,10 +208,13 @@
 <div id="toast-zone" class="toast-zone"></div>
 
 <!-- 초등 필수 단어 300개 데이터 (별도 파일로 관리, 이 파일만 수정하면 됨) -->
-<script src="js/data/elementary-words.js?v=10"></script>
-<script src="js/storage.js?v=10"></script>
-<script src="js/profiles.js?v=10"></script>
-<script src="js/app.js?v=10"></script>
+<script src="js/data/elementary-words.js?v=11"></script>
+<script src="js/storage.js?v=11"></script>
+<script src="js/profiles.js?v=11"></script>
+<!-- Firebase: 로그인 관리/마스터 단어 DB/사용이력/랭킹. 로드 실패해도 위 로컬 기능은 그대로 동작한다 -->
+<script type="module" src="js/firebase-init.js?v=11"></script>
+<script src="js/cloud.js?v=11"></script>
+<script src="js/app.js?v=11"></script>
 
 </body>
 </html>
