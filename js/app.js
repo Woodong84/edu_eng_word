@@ -42,6 +42,41 @@ const LEVEL_TIERS = [
     { min: 1,  tier: 1, title: '단어 새싹' }
 ];
 
+let comboCount = 0; // 현재 테스트 세션에서 힌트 없이 연속으로 맞힌 수 (오답/힌트 사용 시 리셋)
+
+// ---------------------------------------------------
+// [업적 정의] 레벨과 별개의 도전과제. check()가 true가 되는 순간 해금되어
+// userStats.achievements에 id가 기록된다 (한 번 달성하면 유지).
+// ---------------------------------------------------
+const ACHIEVEMENTS = [
+    { id: 'first_word',    icon: '🌱', title: '첫 단어 등록',    check: () => wordBank.length >= 1 },
+    { id: 'words_50',      icon: '📚', title: '단어 50개 수집',  check: () => wordBank.length >= 50 },
+    { id: 'words_100',     icon: '📖', title: '단어 100개 수집', check: () => wordBank.length >= 100 },
+    { id: 'words_300',     icon: '🏛️', title: '단어 300개 수집', check: () => wordBank.length >= 300 },
+    { id: 'first_correct', icon: '🎯', title: '첫 정답',         check: s => (s.totalCorrect || 0) >= 1 },
+    { id: 'correct_100',   icon: '💯', title: '정답 100번',      check: s => (s.totalCorrect || 0) >= 100 },
+    { id: 'correct_500',   icon: '🚀', title: '정답 500번',      check: s => (s.totalCorrect || 0) >= 500 },
+    { id: 'combo_5',       icon: '🔥', title: '5연속 정답',      check: s => (s.bestCombo || 0) >= 5 },
+    { id: 'combo_10',      icon: '⚡', title: '10연속 정답',     check: s => (s.bestCombo || 0) >= 10 },
+    { id: 'streak_3',      icon: '📅', title: '3일 연속 학습',   check: s => (s.bestStreak || 0) >= 3 },
+    { id: 'streak_7',      icon: '🗓️', title: '일주일 개근',     check: s => (s.bestStreak || 0) >= 7 },
+    { id: 'streak_30',     icon: '👑', title: '한 달 개근',      check: s => (s.bestStreak || 0) >= 30 },
+    { id: 'level_5',       icon: '🌟', title: '레벨 5 달성',     check: s => s.level >= 5 },
+    { id: 'level_10',      icon: '🏆', title: '레벨 10 달성',    check: s => s.level >= 10 }
+];
+// 프리셋 카테고리별 마스터 업적: 해당 카테고리의 모든 단어를 한 번 이상 맞히면 달성
+Object.keys(ELEMENTARY_WORD_CATEGORIES).forEach(cat => {
+    ACHIEVEMENTS.push({
+        id: 'cat_' + cat,
+        icon: '🎖️',
+        title: `${cat} 단어 마스터`,
+        check: () => ELEMENTARY_WORD_CATEGORIES[cat].every(w => {
+            const item = wordBank.find(x => x.word === w);
+            return item && item.correctCount > 0;
+        })
+    });
+});
+
 // ---------------------------------------------------
 // [프로필별 데이터 로드/저장]
 // ---------------------------------------------------
@@ -295,6 +330,7 @@ function enterApp() {
 
     applyLevelTheme();
     renderRewards();
+    renderStreak();
     updateWordCount();
     renderFolderSelect();
     renderQuizFolderSelect();
@@ -303,6 +339,7 @@ function enterApp() {
     $('gh-raw-url').value = githubConfig.rawUrl;
     $('gh-token').value = githubConfig.token;
     switchTab('manage');
+    checkAchievements(); // 업데이트 이전 진행분 소급 해금 포함
     syncCloudProfile(); // 프로필 진입 시 최신 통계를 클라우드에 반영
 }
 
@@ -322,7 +359,7 @@ function switchTab(tabId) {
     if (tabId === 'study') { renderStudyFolderChips(); renderQuizFolderSelect(); renderQuizCountSelect(); renderStudyList(); }
     if (tabId === 'test') startCumulativeTest();
     if (tabId === 'wrong') renderWrongList();
-    if (tabId === 'status') { renderStatus(); renderRanking(); }
+    if (tabId === 'status') { renderStatus(); renderAchievements(); renderRanking(); }
     if (tabId === 'cloud') refreshAdminAuthStatus();
 }
 
@@ -358,6 +395,113 @@ function gainExp(amount) {
         applyLevelTheme();
         playLevelUpEffect(userStats.level, lastSticker);
     }
+}
+
+// ---------------------------------------------------
+// [출석 스트릭] 하루에 한 문제라도 풀면 그날은 학습한 날로 기록된다.
+// 어제도 학습했으면 연속일 +1, 하루라도 건너뛰면 1일부터 다시 시작.
+// ---------------------------------------------------
+function localDateStr(d = new Date()) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function recordStudyDay() {
+    const today = localDateStr();
+    if (userStats.lastStudyDate === today) return; // 오늘은 이미 기록됨
+    const yesterday = localDateStr(new Date(Date.now() - 86400000));
+    userStats.streakDays = (userStats.lastStudyDate === yesterday) ? (userStats.streakDays || 0) + 1 : 1;
+    userStats.lastStudyDate = today;
+    userStats.bestStreak = Math.max(userStats.bestStreak || 0, userStats.streakDays);
+    renderStreak();
+    if (userStats.streakDays >= 2) showToast(`🔥 ${userStats.streakDays}일 연속 학습 중!`, 2600);
+}
+
+// 화면 표시용 현재 연속일: 오늘 학습했으면 그대로, 어제까지 학습했으면 유지된 상태(오늘 풀면 +1),
+// 이틀 이상 비었으면 0으로 표시(다시 풀면 1일부터).
+function currentStreakDays() {
+    const today = localDateStr();
+    const yesterday = localDateStr(new Date(Date.now() - 86400000));
+    if (userStats.lastStudyDate === today || userStats.lastStudyDate === yesterday) return userStats.streakDays || 0;
+    return 0;
+}
+
+function renderStreak() {
+    const el = $('streak-line');
+    const days = currentStreakDays();
+    if (days >= 1) {
+        const best = userStats.bestStreak || days;
+        el.textContent = `🔥 ${days}일 연속 학습 중!` + (best > days ? ` · 최고 ${best}일` : '');
+        el.hidden = false;
+    } else {
+        el.hidden = true;
+    }
+}
+
+// ---------------------------------------------------
+// [콤보 이펙트] 힌트 없이 연속 정답 시 소형 파티클 버스트 (레벨업 파티클 스타일 재사용)
+// ---------------------------------------------------
+function playComboBurst(emojis = ['🎉', '✨', '⭐', '🔥']) {
+    const burst = document.createElement('div');
+    burst.className = 'combo-burst';
+    for (let i = 0; i < 10; i++) {
+        const s = document.createElement('span');
+        s.className = 'lv-particle';
+        s.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+        s.style.left = `${Math.random() * 100}vw`;
+        s.style.animationDuration = `${1 + Math.random() * 0.8}s`;
+        s.style.animationDelay = `${Math.random() * 0.2}s`;
+        burst.appendChild(s);
+    }
+    document.body.appendChild(burst);
+    setTimeout(() => burst.remove(), 2200);
+}
+
+// ---------------------------------------------------
+// [업적 해금/표시]
+// ---------------------------------------------------
+function checkAchievements() {
+    if (!userStats.achievements) userStats.achievements = [];
+    const newly = [];
+    ACHIEVEMENTS.forEach(a => {
+        if (userStats.achievements.includes(a.id)) return;
+        if (a.check(userStats)) { userStats.achievements.push(a.id); newly.push(a); }
+    });
+    if (newly.length === 0) return;
+
+    saveProfileData();
+    syncCloudProfile();
+    renderAchievements();
+    if (newly.length > 3) {
+        // 업데이트 직후 소급 해금 등으로 한꺼번에 여러 개가 풀리는 경우 요약으로 축약
+        showToast(`🏅 업적 ${newly.length}개 달성!`, 3000);
+        playComboBurst(['🏅', '🎉', '✨']);
+    } else {
+        newly.forEach((a, i) => setTimeout(() => {
+            showToast(`🏅 업적 달성! ${a.icon} ${a.title}`, 3000);
+            playComboBurst([a.icon, '🎉', '✨']);
+        }, i * 700));
+    }
+}
+
+function renderAchievements() {
+    const grid = $('achievement-grid');
+    grid.innerHTML = '';
+    const unlocked = userStats.achievements || [];
+    ACHIEVEMENTS.forEach(a => {
+        const badge = document.createElement('div');
+        const got = unlocked.includes(a.id);
+        badge.className = 'achievement-badge' + (got ? ' unlocked' : '');
+        const icon = document.createElement('span');
+        icon.className = 'ach-icon';
+        icon.textContent = got ? a.icon : '🔒';
+        const title = document.createElement('span');
+        title.className = 'ach-title';
+        title.textContent = a.title;
+        badge.appendChild(icon);
+        badge.appendChild(title);
+        grid.appendChild(badge);
+    });
+    $('achievement-count').textContent = `${unlocked.length} / ${ACHIEVEMENTS.length}`;
 }
 
 // 레벨업 풀스크린 이펙트 (이모지 파티클 + 카드 팝업)
@@ -492,7 +636,10 @@ function addWordsToBank(entries, { folderId = DEFAULT_FOLDER.id, source = 'manua
         addedCount++;
     });
 
-    if (addedCount > 0) saveProfileData();
+    if (addedCount > 0) {
+        saveProfileData();
+        checkAchievements(); // 단어 수 관련 업적 (수동/프리셋/마스터 등록 경로 공통)
+    }
     updateWordCount();
     return { addedCount, invalidCount, duplicateCount };
 }
@@ -515,15 +662,23 @@ function parseWordMeaningInput(input) {
 }
 
 function saveWords() {
-    const input = $('word-input').value;
-    if (!input.trim()) return showToast('단어를 입력해 주세요.');
+    const en = $('word-input-en').value.trim();
+    const ko = $('word-input-ko').value.trim();
+    if (!en) return showToast('영어 단어를 입력해 주세요.');
 
-    const entries = parseWordMeaningInput(input);
+    // 기본은 영어/뜻을 각각의 입력창에서 받는다. 영어 칸에 쉼표/줄바꿈으로 여러 단어를
+    // 넣으면 일괄 등록으로 처리되며, 이때는 항목별 "word:뜻" 표기를 사용할 수 있다.
+    const chunks = parseWordMeaningInput(en);
+    const entries = chunks.length === 1
+        ? [{ word: chunks[0].word, meaning: ko || chunks[0].meaning }]
+        : chunks;
     const result = addWordsToBank(entries, { folderId: $('folder-select').value, source: 'manual' });
     renderFolderSelect();
     renderPresetWordPicker();
     reportAddResult(result);
-    $('word-input').value = '';
+    $('word-input-en').value = '';
+    $('word-input-ko').value = '';
+    $('word-input-en').focus(); // 연속 등록이 편하도록 영어 입력창으로 복귀
 }
 
 function updateWordCount() { $('total-count').innerText = wordBank.length; }
@@ -811,6 +966,7 @@ function startCumulativeTest() {
     const count = Math.min(userStats.quizCount || 5, pool.length);
     currentQuizList = [...pool].sort(() => Math.random() - 0.5).slice(0, count);
     currentQuizIndex = 0;
+    comboCount = 0; // 새 테스트마다 콤보 초기화
     renderQuiz();
 }
 
@@ -888,23 +1044,43 @@ function validateAnswer() {
     const masterItem = wordBank.find(item => item.id === currentItem.id);
 
     if (userAnswer === currentItem.word) {
+        recordStudyDay();
         rolloverStatsBucketsIfNeeded();
         userStats.totalCorrect = (userStats.totalCorrect || 0) + 1;
         userStats.weeklyCorrect = (userStats.weeklyCorrect || 0) + 1;
         userStats.monthlyCorrect = (userStats.monthlyCorrect || 0) + 1;
         Cloud.logHistory(Profiles.activeId(), { word: currentItem.word, result: 'correct', usedHint: quizIncorrectCount > 0, folderId: currentItem.folderId });
 
-        if (quizIncorrectCount === 0) { masterItem.correctCount++; showToast('🎯 완벽해요! +10 EXP'); gainExp(10); }
-        else { showToast('🎯 정답입니다! (힌트 사용)'); saveProfileData(); syncCloudProfile(); }
+        if (quizIncorrectCount === 0) {
+            masterItem.correctCount++;
+            comboCount++;
+            userStats.bestCombo = Math.max(userStats.bestCombo || 0, comboCount);
+            if (comboCount >= 2) {
+                showToast(`🔥 ${comboCount}연속 정답! +10 EXP`);
+                playComboBurst();
+            } else {
+                showToast('🎯 완벽해요! +10 EXP');
+            }
+            gainExp(10);
+        } else {
+            comboCount = 0; // 힌트를 쓴 정답은 콤보가 끊긴다
+            showToast('🎯 정답입니다! (힌트 사용)');
+            saveProfileData();
+            syncCloudProfile();
+        }
+        checkAchievements();
         currentQuizIndex++;
         renderQuiz();
     } else {
+        comboCount = 0;
+        recordStudyDay(); // 틀려도 학습한 날로는 기록
         quizIncorrectCount++;
         masterItem.incorrectCount++;
         userStats.totalWrong = (userStats.totalWrong || 0) + 1;
         saveProfileData();
         syncCloudProfile();
         Cloud.logHistory(Profiles.activeId(), { word: currentItem.word, result: 'wrong', usedHint: false, folderId: currentItem.folderId });
+        checkAchievements(); // 출석 관련 업적은 오답으로도 해금될 수 있음
 
         showToast('❌ 다시 한 번 들어보세요!');
         inputEl.value = '';
@@ -1169,8 +1345,10 @@ function bindStaticEvents() {
     $('btn-switch-profile').addEventListener('click', openProfileScreenAsViewer);
     $('profile-chip').addEventListener('click', openProfileScreenAsViewer);
 
-    // 단어 관리
+    // 단어 관리 (영어 입력 → Enter → 뜻 입력 → Enter → 저장 흐름)
     $('btn-save-words').addEventListener('click', saveWords);
+    $('word-input-en').addEventListener('keyup', (e) => { if (e.key === 'Enter') $('word-input-ko').focus(); });
+    $('word-input-ko').addEventListener('keyup', (e) => { if (e.key === 'Enter') saveWords(); });
     $('btn-add-folder').addEventListener('click', addFolder);
     $('btn-del-folder').addEventListener('click', deleteFolder);
     $('btn-toggle-preset').addEventListener('click', () => {

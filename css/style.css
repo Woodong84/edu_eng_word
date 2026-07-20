@@ -55,6 +55,18 @@ button { touch-action: manipulation; }
 .status-value { font-size: 22px; font-weight: bold; color: var(--primary); }
 .status-label { font-size: 12px; color: #64748b; margin-top: 4px; font-weight: bold; }
 
+/* ==================== 업적 배지 ==================== */
+.achievement-zone { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+.ach-count { font-size: 12px; color: #64748b; font-weight: bold; margin-left: 6px; }
+.achievement-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.achievement-badge { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: 12px; background: #f1f5f9; border: 2px solid #e2e8f0; opacity: 0.55; text-align: center; }
+.achievement-badge.unlocked { background: #fffbeb; border-color: var(--warning); opacity: 1; }
+.ach-icon { font-size: 22px; }
+.ach-title { font-size: 11px; font-weight: bold; color: var(--text); }
+
+/* 콤보/업적용 소형 파티클 버스트 (레벨업 파티클 스타일 재사용) */
+.combo-burst { position: fixed; inset: 0; pointer-events: none; z-index: 250; overflow: hidden; }
+
 /* ==================== 랭킹 ==================== */
 .ranking-zone { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
 .ranking-zone h4 { margin-bottom: 10px; }
@@ -99,6 +111,7 @@ button { touch-action: manipulation; }
 .exp-bar-container { width: 100%; height: 12px; background: #fde68a; border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
 .exp-fill { height: 100%; background: var(--warning); width: 0%; transition: width 0.5s ease-out; }
 .sticker-board { font-size: 24px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 30px; }
+.streak-line { font-size: 13px; font-weight: bold; color: #d97706; margin-bottom: 8px; }
 
 /* ==================== 하단 탭 바 (모바일 기본) ==================== */
 .tab-menu {
