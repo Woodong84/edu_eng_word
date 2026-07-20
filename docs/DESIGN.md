@@ -15,7 +15,7 @@
 | 클라우드 | Firebase Authentication + Firestore (프로필/통계/마스터 단어/이력/랭킹, §8) |
 | 음성 | Web Speech API (`speechSynthesis`) |
 | 배포 | GitHub Pages (`main` 브랜치 `/(root)`), 접속 URL: `https://woodong84.github.io/edu_eng_word/` |
-| 캐시 무효화 | `index.html`에서 css/js 참조에 `?v=N` 쿼리 부여, 배포 시 N을 올림 (현재 `v=11`) |
+| 캐시 무효화 | `index.html`에서 css/js 참조에 `?v=N` 쿼리 부여, 배포 시 N을 올림 (현재 `v=14`) |
 
 정적 자원이라 서버 로직이 없고, `index.html`을 열면 바로 동작합니다. 배포는 GitHub Pages가 `main` 브랜치 push를 감지해 자동 빌드합니다. Firestore 보안 규칙(`firestore.rules`)은 Firebase 콘솔에서 별도로 게시해야 합니다(§8.1).
 
