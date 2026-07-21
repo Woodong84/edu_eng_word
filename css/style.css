@@ -71,7 +71,8 @@ button { touch-action: manipulation; }
 /* ==================== 랭킹 ==================== */
 .ranking-zone { margin-top: 22px; border-top: 1px solid #e2e8f0; padding-top: 15px; }
 .ranking-zone h4 { margin-bottom: 10px; }
-.ranking-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+/* 랭킹: 5등까지 보이고 넘치면 세로 스크롤 */
+.ranking-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-height: 300px; overflow-y: auto; padding-right: 4px; }
 .ranking-row { display: flex; align-items: center; gap: 10px; background: var(--card); border: 2px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; }
 .ranking-row.me { border-color: var(--primary); background: var(--accent-soft); }
 .ranking-rank { font-weight: bold; font-size: 15px; color: #64748b; width: 24px; text-align: center; flex-shrink: 0; }
