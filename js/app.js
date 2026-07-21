@@ -30,7 +30,7 @@ let rankingPeriod = 'weekly'; // 상태 탭 랭킹 보기 ('weekly' | 'monthly')
 let profileScreenViewer = null; // 프로필 화면을 연 주체 (null=최초 접속 → 전체 표시, 그 외에는 권한별로 목록 제한)
 let profileSearchResult = null; // 이름 검색으로 찾은 프로필 (범위 제한과 무관하게 이동 가능하도록 함)
 const VALID_WORD_PATTERN = /^[a-z]+(-[a-z]+)*$/; // 영어 알파벳 + 하이픈 복합어만 허용 (수동입력/GitHub/프리셋 동일 검증)
-const DEFAULT_FOLDER = { id: 'default', name: '기본 폴더' };
+const DEFAULT_FOLDER = { id: 'default', name: '기본 학습장' };
 const MASTER_FOLDER = { id: 'master', name: '☁️ 마스터' };
 
 // 레벨 구간별 칭호/테마. body[data-tier]로 CSS 색상이 바뀐다 (css/style.css 참조)
@@ -86,11 +86,15 @@ function loadProfileData() {
     wordBank = AppStorage.get(profileKey('words'), []);
     userStats = AppStorage.get(profileKey('stats'), { level: 1, exp: 0, stickers: [] });
     folders = AppStorage.get(profileKey('folders'), [{ ...DEFAULT_FOLDER }]);
-    // 예전 데이터 보정: folderId가 없으면 기본 폴더로, meaning이 없으면 프리셋 사전에서 채운다
+    // 예전 데이터 보정: folderId가 없으면 기본 학습장으로, meaning이 없으면 프리셋 사전에서 채우고,
+    // 기본 폴더의 옛 이름("기본 폴더")은 새 이름("기본 학습장")으로 변경한다
     let needsBackfill = false;
     wordBank.forEach(w => {
         if (!w.folderId) { w.folderId = DEFAULT_FOLDER.id; needsBackfill = true; }
         if (w.meaning === undefined) { w.meaning = ELEMENTARY_WORD_MEANINGS[w.word] || ''; needsBackfill = true; }
+    });
+    folders.forEach(f => {
+        if (f.id === DEFAULT_FOLDER.id && f.name !== DEFAULT_FOLDER.name) { f.name = DEFAULT_FOLDER.name; needsBackfill = true; }
     });
     if (needsBackfill) saveProfileData();
 }
@@ -587,11 +591,11 @@ function addFolder() {
 
 function deleteFolder() {
     const folderId = $('folder-select').value;
-    if (folderId === DEFAULT_FOLDER.id) return showToast('기본 폴더는 삭제할 수 없어요.');
+    if (folderId === DEFAULT_FOLDER.id) return showToast('기본 학습장은 삭제할 수 없어요.');
     const target = folders.find(f => f.id === folderId);
     if (!target) return;
     const count = wordBank.filter(w => w.folderId === folderId).length;
-    if (!confirm(`'${target.name}' 폴더를 삭제할까요?\n(단어 ${count}개는 기본 폴더로 이동합니다)`)) return;
+    if (!confirm(`'${target.name}' 폴더를 삭제할까요?\n(단어 ${count}개는 기본 학습장으로 이동합니다)`)) return;
 
     ensureFolder(DEFAULT_FOLDER);
     wordBank.forEach(w => { if (w.folderId === folderId) w.folderId = DEFAULT_FOLDER.id; });
@@ -600,7 +604,7 @@ function deleteFolder() {
     if (quizFolderId === folderId) quizFolderId = 'all';
     saveProfileData();
     renderFolderSelect();
-    showToast(`폴더가 삭제되고 단어는 기본 폴더로 이동했어요.`);
+    showToast(`폴더가 삭제되고 단어는 기본 학습장으로 이동했어요.`);
 }
 
 // ---------------------------------------------------
@@ -975,7 +979,7 @@ function renderQuiz() {
     const progress = $('quiz-progress');
 
     if (currentQuizIndex >= currentQuizList.length) {
-        container.innerHTML = `<h2>🎉 테스트 완료!</h2>`;
+        container.innerHTML = `<h2>🎉 학습 완료!</h2>`;
         progress.innerText = '';
         saveProfileData();
         return;
@@ -1194,7 +1198,7 @@ async function renderRanking() {
 
         container.innerHTML = '';
         if (rows.length === 0) {
-            container.innerHTML = '<p class="ranking-empty">아직 랭킹 데이터가 없어요. 테스트를 풀면 집계돼요!</p>';
+            container.innerHTML = '<p class="ranking-empty">아직 랭킹 데이터가 없어요. 문제를 풀면 집계돼요!</p>';
             return;
         }
 
@@ -1373,7 +1377,7 @@ function bindStaticEvents() {
     $('quiz-count-select').addEventListener('change', (e) => {
         userStats.quizCount = parseInt(e.target.value, 10);
         saveProfileData();
-        showToast(`테스트 문제 수가 ${e.target.value}개로 설정되었어요.`);
+        showToast(`학습 문제 수가 ${e.target.value}개로 설정되었어요.`);
     });
 
     // 클라우드 설정
