@@ -3,10 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="#3FA2FF">
     <title>초등 영단어 마스터</title>
+    <!-- 아이들용 둥근 글꼴(Jua). 로드에 실패해도 시스템 글꼴로 정상 표시된다 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
     <!-- ?v= 값은 배포마다 올려서 모바일 브라우저가 이전 캐시 대신 새 파일을 받도록 한다 -->
-    <link rel="stylesheet" href="css/style.css?v=16">
+    <link rel="stylesheet" href="css/style.css?v=17">
 </head>
 <body data-tier="1">
 
@@ -218,13 +222,13 @@
 <div id="toast-zone" class="toast-zone"></div>
 
 <!-- 초등 필수 단어 300개 데이터 (별도 파일로 관리, 이 파일만 수정하면 됨) -->
-<script src="js/data/elementary-words.js?v=16"></script>
-<script src="js/storage.js?v=16"></script>
-<script src="js/profiles.js?v=16"></script>
+<script src="js/data/elementary-words.js?v=17"></script>
+<script src="js/storage.js?v=17"></script>
+<script src="js/profiles.js?v=17"></script>
 <!-- Firebase: 로그인 관리/마스터 단어 DB/사용이력/랭킹. 로드 실패해도 위 로컬 기능은 그대로 동작한다 -->
-<script type="module" src="js/firebase-init.js?v=16"></script>
-<script src="js/cloud.js?v=16"></script>
-<script src="js/app.js?v=16"></script>
+<script type="module" src="js/firebase-init.js?v=17"></script>
+<script src="js/cloud.js?v=17"></script>
+<script src="js/app.js?v=17"></script>
 
 </body>
 </html>
